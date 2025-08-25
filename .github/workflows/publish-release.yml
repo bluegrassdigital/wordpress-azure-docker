@@ -70,10 +70,12 @@ jobs:
               printf "- PHP %s\n" "$V"
               printf "  - Prod: [\`%s:%s-latest\`](%s%s-latest), [\`%s:%s-stable\`](%s%s-stable), [\`%s:%s-build-%s\`](%s%s-build-%s), [\`%s:%s\`](%s%s)\n" \
                 "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
-                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \                "$IMAGE_NAME" "$FULL_PROD" "$DOCKER_HUB_BASE" "$FULL_PROD"
+                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
+                "$IMAGE_NAME" "$FULL_PROD" "$DOCKER_HUB_BASE" "$FULL_PROD"
               printf "  - Dev:  [\`%s:%s-dev-latest\`](%s%s-dev-latest), [\`%s:%s-dev-stable\`](%s%s-dev-stable), [\`%s:%s-dev\`](%s%s-dev)\n" \
                 "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
-                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \                "$IMAGE_NAME" "$FULL_DEV" "$DOCKER_HUB_BASE" "$FULL_DEV"
+                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
+                "$IMAGE_NAME" "$FULL_DEV" "$DOCKER_HUB_BASE" "$FULL_DEV"
               printf "\n"
             done
           } >> RELEASE_NOTES.md

@@ -17,7 +17,29 @@ NAME="wazm-smoke-$$"
 
 # Simulate Azure bind-mounted /home by using a host temp dir
 HOME_MNT="$(mktemp -d -t wazm-home-XXXXXX)"
-trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true; rm -rf "$HOME_MNT"' EXIT
+chmod 755 "$HOME_MNT" || true
+
+# Best-effort cleanup that never masks test failures
+cleanup() {
+  echo "[smoke] Cleaning up..."
+  # Stop/remove container if present
+  docker rm -f "$NAME" >/dev/null 2>&1 || true
+  # Give the kernel a moment to release mounts/handles
+  sleep 1
+  # Attempt to remove temp dir; if permission denied, try sudo; otherwise log and continue
+  if [[ -d "$HOME_MNT" ]]; then
+    rm -rf "$HOME_MNT" 2>/dev/null || {
+      if command -v sudo >/dev/null 2>&1; then
+        sudo rm -rf "$HOME_MNT" 2>/dev/null || echo "[smoke] Warning: could not remove $HOME_MNT"
+      else
+        echo "[smoke] Warning: could not remove $HOME_MNT (no sudo)"
+      fi
+    }
+  fi
+}
+
+# Set up trap for cleanup
+trap cleanup EXIT
 
 mkdir -p "$HOME_MNT/LogFiles/sync/apache2" "$HOME_MNT/LogFiles/sync/archive"
 
@@ -85,8 +107,6 @@ docker exec "$NAME" bash -lc 'echo SMOKE_CRON >> /homelive/LogFiles/sync/cron.lo
 # UI will scan latest per-run from /home; ensure at least one file exists
 echo "[smoke] OK: homelive writers, home persistence via rsync, and per-run copies validated."
 
-echo "[smoke] Cleaning up"
-docker rm -f "$NAME" >/dev/null 2>&1 || true
 echo "[smoke] Done"
 
 
