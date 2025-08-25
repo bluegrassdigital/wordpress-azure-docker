@@ -80,7 +80,7 @@ jobs:
           printf "Appended image tags and compare link (if available).\n"
 
       - name: Trivy scan (prod 8.3)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.32.0
         continue-on-error: true
         with:
           image-ref: ${{ env.IMAGE_NAME }}:8.3-build-${{ github.sha }}
@@ -92,7 +92,7 @@ jobs:
           exit-code: '0'
 
       - name: Trivy scan (dev 8.3)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.32.0
         continue-on-error: true
         with:
           image-ref: ${{ env.IMAGE_NAME }}:8.3-dev-stable
@@ -104,7 +104,7 @@ jobs:
           exit-code: '0'
 
       - name: Trivy scan (prod 8.4)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.32.0
         continue-on-error: true
         with:
           image-ref: ${{ env.IMAGE_NAME }}:8.4-build-${{ github.sha }}
@@ -116,7 +116,7 @@ jobs:
           exit-code: '0'
 
       - name: Trivy scan (dev 8.4)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.32.0
         continue-on-error: true
         with:
           image-ref: ${{ env.IMAGE_NAME }}:8.4-dev-stable
