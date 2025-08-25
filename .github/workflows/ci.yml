@@ -44,16 +44,4 @@ jobs:
         run: |
           bash scripts/smoke-test.sh local/wazm:ci
 
-      - name: Build and push multi-arch
-        if: github.ref == 'refs/heads/master'
-        uses: docker/bake-action@v5
-        with:
-          files: |
-            ./docker-bake.hcl
-          targets: default
-          push: true
-          set: |
-            *.cache-from=type=gha
-            *.cache-to=type=gha,mode=max
-
 
