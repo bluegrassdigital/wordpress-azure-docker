@@ -67,7 +67,7 @@ jobs:
               FULL_PROD=$(docker run --rm "$IMAGE_NAME:$V-build-$COMMIT_SHA" php -r 'echo PHP_VERSION;' 2>/dev/null || echo "unknown")
               FULL_DEV=$(docker run --rm "$IMAGE_NAME:$V-dev-stable" php -r 'echo PHP_VERSION;' 2>/dev/null || echo "unknown")
 
-              printf "- PHP %s\n" "$V"
+              printf -- "- PHP %s\n" "$V"
               printf "  - Prod: [\`%s:%s-latest\`](%s%s-latest), [\`%s:%s-stable\`](%s%s-stable), [\`%s:%s-build-%s\`](%s%s-build-%s), [\`%s:%s\`](%s%s)\n" \
                 "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
                 "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
