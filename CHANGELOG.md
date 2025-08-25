@@ -7,6 +7,9 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 #### [Unreleased]
  
 
+#### v2025.08.25
+- Release: Weekly maintenance release with latest upstream updates
+
 #### v2025.08.21
 - CI: Build on pushes to `main`/`master` and tag `:latest` variants
 - CI: Weekly scheduled rebuilds remain in place
