@@ -90,8 +90,9 @@ jobs:
         env:
           IMAGE: ${{ env.IMAGE_NAME }}
         run: |
-          FULL=$(docker run --rm $IMAGE:${{ matrix.php_version }}-stable-${{ env.BUILD_DATE }} php -r 'echo PHP_VERSION;')
-          echo "full=$FULL" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          FULL=$(docker run --rm "$IMAGE:${{ matrix.php_version }}-stable-${{ env.BUILD_DATE }}" php -r 'echo PHP_VERSION;')
+          printf 'full=%s\n' "$FULL" >> "$GITHUB_OUTPUT"
 
       - name: Resolve full PHP version from dev image
         if: ${{ github.ref_type == 'tag' }}
@@ -99,8 +100,9 @@ jobs:
         env:
           IMAGE: ${{ env.IMAGE_NAME }}
         run: |
-          FULL=$(docker run --rm $IMAGE:${{ matrix.php_version }}-dev-stable php -r 'echo PHP_VERSION;')
-          echo "full=$FULL" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          FULL=$(docker run --rm "$IMAGE:${{ matrix.php_version }}-dev-stable" php -r 'echo PHP_VERSION;')
+          printf 'full=%s\n' "$FULL" >> "$GITHUB_OUTPUT"
 
       - name: Add tag with full PHP version (prod, multi-arch)
         env:
