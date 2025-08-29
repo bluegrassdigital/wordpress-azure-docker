@@ -86,6 +86,7 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-dev-latest
             ${{ (github.ref_type == 'tag' || github.event_name == 'schedule') && format('{0}:{1}-dev-stable', env.IMAGE_NAME, matrix.php_version) || '' }}
       - name: Resolve full PHP version from prod image
+        if: ${{ github.ref_type == 'tag' }}
         id: phpver_prod
         env:
           IMAGE: ${{ env.IMAGE_NAME }}
