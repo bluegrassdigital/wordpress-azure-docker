@@ -10,7 +10,7 @@ Operational reference for running `bluegrassdigital/wordpress-azure-sync` on Azu
 #### Key environment variables
 - `DOCKER_SYNC_ENABLED=1` to enable `/home` ↔ `/homelive` sync.
 - `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` to persist `/home` on App Service (required for WordPress content persistence and sync).
-- `APACHE_DOCUMENT_ROOT=/home/site/wwwroot` (default)
+- `APACHE_DOCUMENT_ROOT=/home/site/wwwroot` (default; served via stable symlink `/var/www/current` inside the container)
 - `APACHE_SITE_ROOT=/home/site/` (default)
 - `APACHE_LOG_DIR=/home/LogFiles/sync/apache2` (default)
 - `WP_CONTENT_ROOT=/home/site/wwwroot/wp-content` (default)
@@ -18,10 +18,14 @@ Operational reference for running `bluegrassdigital/wordpress-azure-sync` on Azu
 - `USE_SYSTEM_CRON=1` to run WP cron via system cron (default); set to `0` to use WP's built-in cron.
 - New Relic: `NEWRELIC_KEY`, `WEBSITE_HOSTNAME` (agent install is best-effort).
 
-#### Logs and health
-- Healthcheck: HTTP on `/` every 30s.
+See also sizing and tuning knobs for FPM/Apache/OPcache in `docs/SIZING_TUNING.md` (e.g., `PHP_FPM_MAX_CHILDREN`, `APACHE_KEEPALIVE_TIMEOUT`, `PHP_OPCACHE_MB`).
+
+#### Runtime & health
+- Runtime: Apache mpm_event + PHP-FPM (unix socket `/run/php/php-fpm.sock`). No mod_php.
+- Healthcheck: HTTP GET `/healthz` every 30s (exercises PHP-FPM). Use this for App Service Health check.
+- Local diagnostics: `/ping` and `/status` are available inside the container only.
 - Logs: `/home/LogFiles/sync`, Apache at `/home/LogFiles/sync/apache2`.
-- Supervisord manages: apache2, cron, ssh, syncinit, sync (Unison).
+- Supervisord manages: apache2, php-fpm, cron, ssh, syncinit, sync (Unison).
 
 #### First-time WordPress install (Azure App Service)
 - Database: provision MySQL and add an App Setting named `MYSQLCONNSTR_defaultConnection` with the Azure-style connection string:
@@ -53,7 +57,7 @@ wp plugin activate wordpress-azure-monitor
 
 #### Azure App Service deployment guidance
 - Use immutable per-build tags in production (e.g., `bluegrassdigital/wordpress-azure-sync:8.3-build-<git-sha>`), or pin by digest. Avoid `:latest`, `:stable`, and `:<full-php-version>` if you require strict immutability.
-- For zero-downtime, deploy to a staging slot with Health check enabled (e.g., `/` or `/healthz`) and swap once healthy. A single-instance app updated in-place may have a brief interruption.
+- For zero-downtime, deploy to a staging slot with Health check enabled at `/healthz` and swap once healthy. A single-instance app updated in-place may have a brief interruption.
 - To apply updates, change the configured image tag or restart the app/slot so App Service pulls the new image. If you wire up webhooks/CD to your registry, a new push to the same tag can trigger an automatic pull + restart.
 - Security/patches: we publish patched images (new immutable tags) when upstream components update. Track releases and move to the newer immutable tag via your staging → prod flow.
 
@@ -78,5 +82,3 @@ Practical flow
 
 #### Release process
 - See `RELEASING.md` for tag semantics, weekly vs feature releases, and changelog workflow.
-
-

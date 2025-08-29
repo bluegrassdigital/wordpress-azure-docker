@@ -10,6 +10,7 @@ This example spins up the dev variant of the WordPress image and a MySQL databas
 cd example
 docker compose up -d
 # Open http://localhost:8080
+# Health check: http://localhost:8080/healthz
 ```
 
 - WordPress files map to `example/src` → container `/home/site/wwwroot` for live edits.
