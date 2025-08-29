@@ -16,6 +16,7 @@ Operational reference for running `bluegrassdigital/wordpress-azure-sync` on Azu
 - `WP_CONTENT_ROOT=/home/site/wwwroot/wp-content` (default)
 - `WORDPRESS_CONFIG_EXTRA` for local overrides (e.g., disable SSL for local DB).
 - `USE_SYSTEM_CRON=1` to run WP cron via system cron (default); set to `0` to use WP's built-in cron.
+- `HTACCESS_SANITIZE=1` (optional): audit and comment out legacy `.htaccess` directives incompatible with PHP‑FPM (e.g., `php_value`, cPanel `AddHandler`). Findings are logged to `/home/LogFiles/sync/htaccess-audit.log`. When sanitization is enabled, `php_value/php_flag` settings are migrated into a local `.user.ini` file so intent is preserved under PHP‑FPM.
 - New Relic: `NEWRELIC_KEY`, `WEBSITE_HOSTNAME` (agent install is best-effort).
 
 See also sizing and tuning knobs for FPM/Apache/OPcache in `docs/SIZING_TUNING.md` (e.g., `PHP_FPM_MAX_CHILDREN`, `APACHE_KEEPALIVE_TIMEOUT`, `PHP_OPCACHE_MB`).
@@ -41,6 +42,7 @@ See also sizing and tuning knobs for FPM/Apache/OPcache in `docs/SIZING_TUNING.m
   - When `DOCKER_SYNC_ENABLED=1`, Apache initially serves from `/home` and switches to `/homelive` only after the initial sync completes (atomic docroot switch)
 - Complete setup: browse to your site domain and follow the WordPress installer.
 - .htaccess: WordPress normally writes this. Apache is configured to allow overrides for the active docroot (`/var/www/current`). If needed, copy our template to `/home/site/wwwroot/.htaccess` (persisted storage) from `file-templates/htaccess-template`.
+  - If you see 500 errors after enabling rewrites, audit `/home/LogFiles/sync/htaccess-audit.log` or enable `HTACCESS_SANITIZE=1` to automatically comment out incompatible directives.
 
 #### WordPress Azure Monitor plugin
 - Bundled at `/opt/wordpress-azure-monitor` and mirrored to `/home/site/wwwroot/wp-content/plugins/wordpress-azure-monitor` on container start.
