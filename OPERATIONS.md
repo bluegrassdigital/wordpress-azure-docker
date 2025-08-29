@@ -37,9 +37,10 @@ See also sizing and tuning knobs for FPM/Apache/OPcache in `docs/SIZING_TUNING.m
 - First boot behavior (automatic):
   - Downloads WordPress core to `/home/site/wwwroot` if missing
   - Creates `/home/site/wwwroot/wp-config.php` from the bundled template, reading `MYSQLCONNSTR_defaultConnection`
-  - Sets up cron and log rotation; adjusts Apache to use `/homelive` if `DOCKER_SYNC_ENABLED` is set
+  - Sets up cron and log rotation
+  - When `DOCKER_SYNC_ENABLED=1`, Apache initially serves from `/home` and switches to `/homelive` only after the initial sync completes (atomic docroot switch)
 - Complete setup: browse to your site domain and follow the WordPress installer.
-- .htaccess: WordPress normally writes this. If needed, copy our template to `/home/site/wwwroot/.htaccess` (persisted storage) from `file-templates/htaccess-template`.
+- .htaccess: WordPress normally writes this. Apache is configured to allow overrides for the active docroot (`/var/www/current`). If needed, copy our template to `/home/site/wwwroot/.htaccess` (persisted storage) from `file-templates/htaccess-template`.
 
 #### WordPress Azure Monitor plugin
 - Bundled at `/opt/wordpress-azure-monitor` and mirrored to `/home/site/wwwroot/wp-content/plugins/wordpress-azure-monitor` on container start.

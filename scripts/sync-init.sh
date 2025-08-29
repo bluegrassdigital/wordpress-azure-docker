@@ -180,6 +180,9 @@ fi
 # Ensure target exists
 mkdir -p /homelive/site/wwwroot
 
+# Ensure we keep serving from /home until initial seed completes
+ln -sfn /home/site/wwwroot /var/www/current
+
 # Rotate logs to snapshot active files before seeding to /homelive.
 # This avoids rsync 'vanished file' warnings during active writes.
 echo "$(date) Rotating logs to snapshot active files before seeding"
@@ -239,19 +242,27 @@ echo "$(date) apache document root folders: $APACHE_DOCUMENT_ROOT $APACHE_DOCUME
 echo "$(date) apache site root folders: $APACHE_SITE_ROOT $APACHE_SITE_ROOT_LIVE $APACHE_SITE_ROOT_LIVE_ESC"
 echo "$(date) apache log folders: $APACHE_LOG_DIR $APACHE_LOG_DIR_LIVE $APACHE_LOG_DIR_LIVE_ESC"
 
-find /etc/apache2 -type f -exec sed -i -e "s/\${APACHE_SITE_ROOT}/$APACHE_SITE_ROOT_LIVE_ESC/g" {} +
-find /etc/apache2 -type f -exec sed -i -e "s/\${APACHE_DOCUMENT_ROOT}/$APACHE_DOCUMENT_ROOT_LIVE_ESC/g" {} +
-find /etc/apache2 -type f -exec sed -i -e "s/\${APACHE_LOG_DIR}/$APACHE_LOG_DIR_LIVE_ESC/g" {} +
-find /usr/local/etc/php/conf.d -type f -exec sed -i -e "s/\${APACHE_LOG_DIR}/$APACHE_LOG_DIR_LIVE_ESC/g" {} +
+# Our Apache config proxies PHP via /var/www/current. We switch the docroot
+# symlink atomically once the initial seed completes, so these broad path
+# rewrites are no longer required. Keep them as no-ops for backward
+# compatibility but do not fail if nothing matches.
+find /etc/apache2 -type f -exec sed -i -e "s/\${APACHE_SITE_ROOT}/$APACHE_SITE_ROOT_LIVE_ESC/g" {} + || true
+find /etc/apache2 -type f -exec sed -i -e "s/\${APACHE_DOCUMENT_ROOT}/$APACHE_DOCUMENT_ROOT_LIVE_ESC/g" {} + || true
+find /etc/apache2 -type f -exec sed -i -e "s/\${APACHE_LOG_DIR}/$APACHE_LOG_DIR_LIVE_ESC/g" {} + || true
+find /usr/local/etc/php/conf.d -type f -exec sed -i -e "s/\${APACHE_LOG_DIR}/$APACHE_LOG_DIR_LIVE_ESC/g" {} + || true
 
 # One-time seeding: if homelive is missing core, seed from home; else keep homelive -> home
+# If homelive is missing core, seed from /home; else keep homelive -> home
 if [[ ! -f "/homelive/site/wwwroot/index.php" ]]; then
-	echo "$(date) Seeding /homelive from /home via Unison (-force /home)"
-	unison default -force /home
+    echo "$(date) Seeding /homelive from /home via Unison (-force /home)"
+    unison default -force /home
 else
-	echo "$(date) Starting initial sync from /homelive to /home"
-	unison default -force /homelive
+    echo "$(date) Starting initial sync from /homelive to /home"
+    unison default -force /homelive
 fi
+
+# Switch live docroot to /homelive now that seeding is complete
+ln -sfn /homelive/site/wwwroot /var/www/current
 
 if supervisorctl -s unix:///var/run/supervisor.sock -u supervisor -p localonly restart apache2; then
   log_info "Apache restarted via supervisor"

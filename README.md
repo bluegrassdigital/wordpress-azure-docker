@@ -24,7 +24,7 @@ Optimized WordPress container for Azure App Service (Linux) with App Service Sto
   - Use deployment slots with Health check enabled at `/healthz` and swap once warm.
 
 ### Deploying file changes
-- With `DOCKER_SYNC_ENABLED=1`, the site is served from `/homelive`; changes deployed to `/home/site/wwwroot` (zip deploy/FTP) won’t show until a restart.
+- With `DOCKER_SYNC_ENABLED=1`, the container serves from `/home` on startup and switches to `/homelive` after the initial sync completes; changes deployed to `/home/site/wwwroot` (zip deploy/FTP) won’t show until a restart.
 - For file deploys to `/home`, restart the app/slot to pick up changes. Avoid manual rsync while Unison is running.
 
 ## Documentation
