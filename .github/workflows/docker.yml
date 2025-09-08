@@ -118,7 +118,7 @@ jobs:
           docker buildx imagetools create --tag $IMAGE:${{ steps.phpver_dev.outputs.full }}-dev $IMAGE:${{ matrix.php_version }}-dev-stable
 
       - name: Trivy scan (prod - json)
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-stable-${{ env.BUILD_DATE }}
           vuln-type: 'os,library'
@@ -151,7 +151,7 @@ jobs:
           ' trivy-prod.json >> $GITHUB_STEP_SUMMARY
 
       - name: Trivy scan (dev - json)
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-dev-latest
           vuln-type: 'os,library'
@@ -185,7 +185,7 @@ jobs:
 
       - name: Trivy SARIF (prod image)
         if: ${{ github.ref_type == 'tag' || github.event_name == 'schedule' }}
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-stable-${{ env.BUILD_DATE }}
           vuln-type: 'os,library'
@@ -213,7 +213,7 @@ jobs:
 
       - name: Trivy SARIF (dev image)
         if: ${{ github.ref_type == 'tag' || github.event_name == 'schedule' }}
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-dev-stable
           vuln-type: 'os,library'
