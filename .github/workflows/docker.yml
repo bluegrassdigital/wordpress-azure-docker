@@ -207,7 +207,7 @@ jobs:
 
       - name: Upload SARIF (prod)
         if: ${{ github.ref_type == 'tag' || github.event_name == 'schedule' }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-prod.cleaned.sarif
           category: trivy-prod-${{ matrix.php_version }}
@@ -235,7 +235,7 @@ jobs:
 
       - name: Upload SARIF (dev)
         if: ${{ github.ref_type == 'tag' || github.event_name == 'schedule' }}
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-dev.cleaned.sarif
           category: trivy-dev-${{ matrix.php_version }}
