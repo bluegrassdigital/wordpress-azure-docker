@@ -34,8 +34,7 @@ docker compose exec --user www-data -w /home/site/wwwroot wordpress wp plugin li
 - Plugin is mounted from `wordpress-plugin/wordpress-azure-monitor` to both locations for live edits.
 
 #### Troubleshooting
-- 403 after first boot: ensure WordPress files exist in `/homelive/site/wwwroot`; rerun sync by restarting container.
+- 403 after first boot: ensure WordPress files exist in `/home/site/wwwroot`; the container will switch to `/homelive` automatically after the first sync. Restart to rerun sync.
 - DB connect errors: verify `WORDPRESS_CONFIG_EXTRA` overrides and the `db` service is healthy.
 - No admin bar badge: ensure plugin is active and check `/home/LogFiles/sync` logs.
-
 

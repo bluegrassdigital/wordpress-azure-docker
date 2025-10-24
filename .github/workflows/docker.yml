@@ -4,12 +4,16 @@ on:
   push:
     branches: ["main", "master"]
     tags: ["v*"]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
   schedule:
     - cron: "0 3 * * 1"   # Weekly rebuild to pick up PHP/OS patches
 
 jobs:
   build-and-push:
+    # Skip this job for PR events; PR images handled in dedicated jobs below
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -87,12 +91,14 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-dev-latest
             ${{ (github.ref_type == 'tag' || github.event_name == 'schedule') && format('{0}:{1}-dev-stable', env.IMAGE_NAME, matrix.php_version) || '' }}
       - name: Resolve full PHP version from prod image
+        if: ${{ github.ref_type == 'tag' }}
         id: phpver_prod
         env:
           IMAGE: ${{ env.IMAGE_NAME }}
         run: |
-          FULL=$(docker run --rm $IMAGE:${{ matrix.php_version }}-stable-${{ env.BUILD_DATE }} php -r 'echo PHP_VERSION;')
-          echo "full=$FULL" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          FULL=$(docker run --rm "$IMAGE:${{ matrix.php_version }}-stable-${{ env.BUILD_DATE }}" php -r 'echo PHP_VERSION;')
+          printf 'full=%s\n' "$FULL" >> "$GITHUB_OUTPUT"
 
       - name: Resolve full PHP version from dev image
         if: ${{ github.ref_type == 'tag' }}
@@ -100,8 +106,9 @@ jobs:
         env:
           IMAGE: ${{ env.IMAGE_NAME }}
         run: |
-          FULL=$(docker run --rm $IMAGE:${{ matrix.php_version }}-dev-stable php -r 'echo PHP_VERSION;')
-          echo "full=$FULL" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          FULL=$(docker run --rm "$IMAGE:${{ matrix.php_version }}-dev-stable" php -r 'echo PHP_VERSION;')
+          printf 'full=%s\n' "$FULL" >> "$GITHUB_OUTPUT"
 
       - name: Add tag with full PHP version (prod, multi-arch)
         env:
@@ -117,6 +124,101 @@ jobs:
           IMAGE: ${{ env.IMAGE_NAME }}
         run: |
           docker buildx imagetools create --tag $IMAGE:${{ steps.phpver_dev.outputs.full }}-dev $IMAGE:${{ matrix.php_version }}-dev-stable
+
+  pr-images:
+    name: Build and Push PR Images
+    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        php_version: ["8.3", "8.4"]
+    env:
+      REGISTRY: docker.io
+      IMAGE_NAME: bluegrassdigital/wordpress-azure-sync
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push PR (prod)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            PHP_VERSION=${{ matrix.php_version }}
+          cache-from: type=gha,scope=${{ matrix.php_version }}-pr-prod
+          cache-to: type=gha,mode=max,scope=${{ matrix.php_version }}-pr-prod
+          provenance: false
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-pr-${{ github.event.number }}
+            ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-pr-${{ github.event.number }}-${{ github.sha }}
+
+      - name: Build and push PR (dev)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: dev
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            PHP_VERSION=${{ matrix.php_version }}
+          cache-from: type=gha,scope=${{ matrix.php_version }}-pr-dev
+          cache-to: type=gha,mode=max,scope=${{ matrix.php_version }}-pr-dev
+          provenance: false
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-pr-${{ github.event.number }}-dev
+            ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-pr-${{ github.event.number }}-dev-${{ github.sha }}
+
+  pr-cleanup:
+    name: Cleanup PR Images
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php_version: ["8.3", "8.4"]
+    env:
+      IMAGE_NAME: bluegrassdigital/wordpress-azure-sync
+    steps:
+      - name: Delete PR tags from Docker Hub
+        env:
+          PHP: ${{ matrix.php_version }}
+          PR: ${{ github.event.number }}
+          USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          NS_REPO="${IMAGE_NAME}"
+          for TAG in \
+            "${PHP}-pr-${PR}" \
+            "${PHP}-pr-${PR}-${GITHUB_SHA}" \
+            "${PHP}-pr-${PR}-dev" \
+            "${PHP}-pr-${PR}-dev-${GITHUB_SHA}"; do
+            echo "Deleting ${NS_REPO}:${TAG} (if exists)"
+            # Docker Hub tag delete API
+            curl -s -o /dev/null -w "%{http_code}\n" -X DELETE -u "${USERNAME}:${TOKEN}" \
+              "https://hub.docker.com/v2/repositories/${NS_REPO}/tags/${TAG}/" || true
+          done
 
       - name: Trivy scan (prod - json)
         uses: aquasecurity/trivy-action@0.33.1

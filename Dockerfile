@@ -1,9 +1,9 @@
-# This Dockerfile sets up a WordPress environment on top of the php:8.3-apache base image.
+# This Dockerfile sets up a WordPress environment on top of php:<ver>-fpm-bookworm with Debian Apache2 (event MPM) and PHP-FPM.
 #
 # 1. Installs essential system packages including Ghostscript, SSH, cron, MariaDB client, rsync, inotify, and supervisord.
 # 2. Adds WordPress CLI (wp-cli), AzCopy for file handling, and Unison for file synchronization (multi-stage to keep final image lean).
 # 3. Installs required PHP extensions and applies production-oriented PHP and Apache settings.
-# 4. Configures Apache modules (rewrite, headers, remoteip) and log behavior; adjusts for Azure environment paths.
+# 4. Configures Apache modules (event mpm, proxy_fcgi, rewrite, headers, remoteip, etc.) and log behavior; adjusts for Azure environment paths.
 # 5. Attempts New Relic agent setup (best-effort) and configures at runtime via environment variables.
 # 6. Prepares directories and files for WordPress core, logs, and scripts; uses supervisord as the main process.
 # 7. Exposes SSH and HTTP ports and runs an entrypoint to initialize runtime behavior.
@@ -22,7 +22,7 @@ RUN set -eux; \
 	if [ -x /usr/bin/unison-fsmonitor ]; then install -Dm755 /usr/bin/unison-fsmonitor /out/unison-fsmonitor; else echo 'echo "unison-fsmonitor not available; unison will still function"' > /out/unison-fsmonitor && chmod +x /out/unison-fsmonitor; fi
 
 # --- Final runtime image ---
-FROM php:${PHP_VERSION}-apache-bookworm AS runtime
+FROM php:${PHP_VERSION}-fpm-bookworm AS runtime
 
 ARG OCI_TITLE="wordpress-azure"
 ARG OCI_DESCRIPTION="WordPress on php-apache with Azure-specific tooling (AzCopy), Unison sync, New Relic, SSH, and supervisord"
@@ -44,20 +44,22 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 RUN set -eux; \
 	apt-get update; \
 	apt-get -y upgrade; \
-	apt-get install -y --no-install-recommends \
-		# Ghostscript is required for rendering PDF previews
-		ghostscript \
-		openssh-server \
-		wget \
-		cron \
-		curl \
-		logrotate \
-		mariadb-client \
-		supervisor \
-		gnupg \
-		inotify-tools \
-		rsync \
-		ca-certificates; \
+    apt-get install -y --no-install-recommends \
+        # Web + tooling
+        apache2 apache2-utils \
+        # Ghostscript is required for rendering PDF previews
+        ghostscript \
+        openssh-server \
+        wget \
+        cron \
+        curl \
+        logrotate \
+        mariadb-client \
+        supervisor \
+        gnupg \
+        inotify-tools \
+        rsync \
+        ca-certificates; \
 	apt-get -y purge linux-libc-dev || true; \
 	apt-get -y autoremove; \
 	rm -rf /var/lib/apt/lists/*
@@ -127,12 +129,14 @@ COPY file-templates/wp-config-docker.php /usr/src/wordpress/wp-config-docker.php
 
 # Enable Apache modules and configs
 RUN set -eux; \
-	a2enmod rewrite expires headers remoteip; \
-	a2enconf apache2-extra remoteip; \
-	# Replace %h with %a in LogFormat
-	find /etc/apache2 -type f -name '*.conf' -exec sed -ri 's/([[:space:]]*LogFormat[[:space:]]+"[^"]*)%h([^"]*")/\1%a\2/g' '{}' +; \
-	# Remove default site config
-	rm -rf /etc/apache2/sites-enabled/000-default.conf
+    a2dismod mpm_prefork || true; \
+    a2enmod mpm_event proxy proxy_fcgi setenvif rewrite deflate headers status remoteip; \
+    a2enmod http2 || true; \
+    a2enconf apache2-extra remoteip; \
+    # Replace %h with %a in LogFormat
+    find /etc/apache2 -type f -name '*.conf' -exec sed -ri 's/([[:space:]]*LogFormat[[:space:]]+"[^"]*)%h([^"]*")/\1%a\2/g' '{}' +; \
+    # Remove default site config
+    rm -rf /etc/apache2/sites-enabled/000-default.conf
 
 # New Relic setup (best-effort)
 RUN set -eux; \
@@ -163,13 +167,11 @@ RUN set -eux; \
 COPY file-templates/sysctl.d/99-wordpress.conf /etc/sysctl.d/99-wordpress.conf
 COPY file-templates/unison/default.prf /root/.unison/default.prf
 RUN set -eux; \
-	echo "root:Docker!" | chpasswd; \
-	mkdir -p /home/LogFiles/sync /home/LogFiles/sync/apache2 /home/LogFiles/sync/archive; \
-	mkdir -p /homelive/LogFiles/sync /homelive/LogFiles/sync/apache2 /homelive/LogFiles/sync/archive; \
-	touch /homelive/LogFiles/sync/cron.log /home/LogFiles/sync/cron.log /home/LogFiles/supervisor.log /home/LogFiles/sync-init.log /home/LogFiles/sync-init-error.log /home/LogFiles/sync/supervisor.log /home/LogFiles/sync/unison.log /homelive/LogFiles/sync/unison.log; \
-	chmod -R 0777 /homelive; \
-	sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf; \
-	sed -ri -e 's!/var/www/!${APACHE_SITE_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+    echo "root:Docker!" | chpasswd; \
+    mkdir -p /home/LogFiles/sync /home/LogFiles/sync/apache2 /home/LogFiles/sync/archive; \
+    mkdir -p /homelive/LogFiles/sync /homelive/LogFiles/sync/apache2 /homelive/LogFiles/sync/archive; \
+    touch /homelive/LogFiles/sync/cron.log /home/LogFiles/sync/cron.log /home/LogFiles/supervisor.log /home/LogFiles/sync-init.log /home/LogFiles/sync-init-error.log /home/LogFiles/sync/supervisor.log /home/LogFiles/sync/unison.log /homelive/LogFiles/sync/unison.log; \
+    chmod -R 0777 /homelive
 
 RUN mkdir -p /tmp
 COPY sshd_config /etc/ssh/
@@ -191,7 +193,8 @@ ENV WEBSITE_INSTANCE_ID=localInstance
 COPY docker-entrypoint.sh /usr/local/bin/
 COPY scripts/fix-wordpress-permissions.sh /usr/local/bin/
 COPY scripts/sync-init.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/fix-wordpress-permissions.sh /usr/local/bin/sync-init.sh
+COPY scripts/tune-concurrency.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/fix-wordpress-permissions.sh /usr/local/bin/sync-init.sh /usr/local/bin/tune-concurrency.sh
 
 # RUN (crontab -l -u root; echo "*/10 * * * * . /etc/profile; fix-wordpress-permissions.sh /homelive/site/wwwroot > /dev/null") | crontab
 
@@ -201,7 +204,7 @@ WORKDIR /homelive/site/wwwroot
 
 EXPOSE 2222 80
 
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -fsS http://localhost/ || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -fsS http://localhost/healthz || exit 1
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["/usr/bin/supervisord"]

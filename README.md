@@ -3,6 +3,7 @@ Optimized WordPress container for Azure App Service (Linux) with App Service Sto
 
 ## What this is
 - A production-ready WordPress image (PHP 8.3/8.4 + Apache) tuned for Azure App Service.
+- Uses Apache mpm_event + PHP‑FPM for scalable, low-latency concurrency.
 - Ships with common PHP extensions, healthcheck, supervisord, and optional WordPress Azure Monitor plugin.
 - Uses rsync + Unison to keep `/homelive` and `/home` in sync when `DOCKER_SYNC_ENABLED=1`.
 
@@ -20,10 +21,10 @@ Optimized WordPress container for Azure App Service (Linux) with App Service Sto
 - .htaccess:
   - WordPress normally writes this; a hardened template is available at `file-templates/htaccess-template`.
 - Zero-downtime:
-  - Use deployment slots with Health check enabled and swap once warm.
+  - Use deployment slots with Health check enabled at `/healthz` and swap once warm.
 
 ### Deploying file changes
-- With `DOCKER_SYNC_ENABLED=1`, the site is served from `/homelive`; changes deployed to `/home/site/wwwroot` (zip deploy/FTP) won’t show until a restart.
+- With `DOCKER_SYNC_ENABLED=1`, the container serves from `/home` on startup and switches to `/homelive` after the initial sync completes; changes deployed to `/home/site/wwwroot` (zip deploy/FTP) won’t show until a restart.
 - For file deploys to `/home`, restart the app/slot to pick up changes. Avoid manual rsync while Unison is running.
 
 ## Documentation
@@ -33,6 +34,7 @@ Optimized WordPress container for Azure App Service (Linux) with App Service Sto
   - `docker build --target dev --build-arg PHP_VERSION=8.4 -t local/wordpress-azure:8.4-dev .`
   - Then point your compose file to `local/wordpress-azure:8.4-dev`.
 - WordPress administrators: see [`docs/wordpress-azure-monitor.md`](docs/wordpress-azure-monitor.md) for the optional Azure Monitor plugin
+- Sizing & tuning: see [`docs/SIZING_TUNING.md`](docs/SIZING_TUNING.md) for runtime knobs and the simple concurrency formula
 - Release process: see [`RELEASING.md`](RELEASING.md) for tags, changelogs, weekly vs feature releases
 
 ## License
