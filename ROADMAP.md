@@ -1,54 +1,56 @@
-### WordPress Azure Docker – Roadmap
+# WordPress Azure Docker Roadmap
 
-This document tracks the improvements and release steps for `bluegrassdigital/wordpress-azure-sync`.
+This roadmap tracks the next practical steps for `bluegrassdigital/wordpress-azure-sync`.
 
-#### Legend
+## Legend
+
 - [ ] To do
 - [x] Done
 
-### Now (ship next)
-- [x] Update image names to Docker Hub repo
+## Now
+
+- [x] Update image names to the Docker Hub repository
   - [x] Replace `yourdockerhub/wordpress-azure` with `bluegrassdigital/wordpress-azure-sync` in `docker-bake.hcl`
   - [x] Set `IMAGE_NAME: bluegrassdigital/wordpress-azure-sync` in `.github/workflows/docker.yml`
-- [x] Confirm/adjust OCI labels in `Dockerfile`
-  - [x] `org.opencontainers.image.source` → Docker Hub repo URL
-  - [x] `org.opencontainers.image.vendor` → `Bluegrass Digital`
-- [x] Add/verify `.dockerignore` to shrink build context (keep `.github/` included)
+- [x] Confirm OCI labels in `Dockerfile`
+  - [x] Set `org.opencontainers.image.source` to the Docker Hub repository URL
+  - [x] Set `org.opencontainers.image.vendor` to `Bluegrass Digital`
+- [x] Add or verify `.dockerignore` to shrink build context while keeping `.github/`
   - [x] Exclude `example/src/**`, `**/.git`, `**/.DS_Store`, `**/node_modules`, `**/.cache`, `**/vendor/*`
-- [x] Tagging policy in CI
-  - [x] Push `:8.3-latest`, `:8.4-latest` on every merge to `main`/`master`
+- [x] Define the CI tagging policy
+  - [x] Push `:8.3-latest` and `:8.4-latest` on every merge to `main` or `master`
   - [x] Only push `:8.x-stable` and full PHP version tags when `github.ref_type == tag`
-  - [x] Add workflow trigger for tag pushes (e.g. `on: push: tags: ['v*']`)
-- [x] Example Docker Compose
-  - [x] Default to Hub image with commented instructions to build local dev image
-  - [x] Remove auto-install; keep optional auto-activate
-  - [x] Add snippet for manual `wp core install` (in `DEV.md`)
-- [x] Documentation split
-  - [x] Add `DEV.md` (local dev, WP-CLI, xdebug, file paths `/home` vs `/homelive`)
-  - [x] Add `OPERATIONS.md` (Azure env vars, logs, New Relic, CI tags, upgrade policy)
-  - [x] Update root `README.md` to link to both
+  - [x] Add a workflow trigger for tag pushes such as `on: push: tags: ['v*']`
+- [x] Provide an example Docker Compose setup
+  - [x] Default to the Hub image with commented instructions for a local dev build
+  - [x] Remove auto-install and keep optional auto-activate
+  - [x] Add a manual `wp core install` snippet in `DEV.md`
+- [x] Split the documentation by audience
+  - [x] Add `DEV.md` for local development, WP-CLI, Xdebug, and the `/home` versus `/homelive` paths
+  - [x] Add `OPERATIONS.md` for Azure settings, logs, New Relic, CI tags, and upgrade policy
+  - [x] Update the root `README.md` to link to both guides
 
-### Next (hardening and automation)
-- [x] CI security scan with Trivy after pushing images
-- [x] Weekly scheduled rebuild workflow (to pick up base image CVEs)
-- [ ] Smoke tests in CI: run container, `curl http://localhost`, `php -v`, `wp --version`
-- [x] Dependabot/Renovate for GitHub Actions and base images
-- [ ] Add `CHANGELOG.md`, confirm `LICENSE` contents, and add `CODEOWNERS`
-- [ ] Define release process: cut git tag → publish `stable` + full PHP version tags
- - [x] Define release process: cut git tag → publish `stable` + full PHP version tags
- - [ ] Enhance release workflow: attach Trivy reports and link Docker image tags (`:8.x-stable`, `:<full-php-version>`, digests) in GitHub Release body
+## Next
 
-### Later (enhancements)
-- [ ] Add PHP 8.5 targets when GA
-- [ ] Consider dropping supervisor privileges per-program where possible
-- [ ] Revisit Unison `repeat` vs `fsmonitor` once stable on target platforms
-- [ ] Integration tests for example stack (MySQL + basic WP install scenario)
-- [ ] Plugin improvements: async tailing via AJAX, settings screen for paths, basic health checks
-- [ ] Azure App Service deployment guide with screenshots
+- [x] Run a Trivy security scan in CI after pushing images
+- [x] Add a weekly scheduled rebuild workflow to pick up base image CVEs
+- [ ] Add smoke tests in CI: run the container, `curl http://localhost`, `php -v`, `wp --version`
+- [x] Add Dependabot or Renovate for GitHub Actions and base images
+- [ ] Add `CHANGELOG.md`, confirm `LICENSE`, and add `CODEOWNERS`
+- [x] Define the release process: cut a git tag, then publish `stable` and full PHP version tags
+- [ ] Enhance the release workflow with Trivy reports and links to Docker image tags and digests in the GitHub Release body
 
-### Operational Notes
-- Image variants: `8.3`, `8.4`, plus `-dev` for developer tooling (composer, xdebug); multi-arch (amd64/arm64)
-- Sync model: Azure `/home` ↔ `/homelive` via initial rsync + Unison; logs in `/home/LogFiles/sync`
-- New Relic: best-effort install; enable with env vars; document opt-out
+## Later
 
+- [ ] Add PHP 8.5 targets when it reaches GA
+- [ ] Consider dropping supervisor privileges per program where possible
+- [ ] Revisit Unison `repeat` versus `fsmonitor` once it is stable on target platforms
+- [ ] Add integration tests for the example stack with MySQL and a basic WordPress install
+- [ ] Improve the plugin with AJAX log tailing, a settings screen for paths, and basic health checks
+- [ ] Write an Azure App Service deployment guide with screenshots
 
+## Operational notes
+
+- Image variants: `8.3`, `8.4`, and `-dev` variants for developer tooling such as Composer and Xdebug; multi-arch on `amd64` and `arm64`
+- Sync model: Azure `/home` ↔ `/homelive` via initial `rsync` plus Unison; logs in `/home/LogFiles/sync`
+- New Relic: best-effort install controlled through environment variables; document opt-out

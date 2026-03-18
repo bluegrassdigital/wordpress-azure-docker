@@ -1,82 +1,115 @@
-### Operations Guide
+# Operations Guide
 
-Operational reference for running `bluegrassdigital/wordpress-azure-sync` on Azure App Service or similar.
+This guide is for operators running `bluegrassdigital/wordpress-azure-sync` on Azure App Service or a similar platform.
 
-#### Image variants
-- Moving tags (mutable): `:8.3-latest`, `:8.4-latest`, `:8.3-dev-latest`, `:8.4-dev-latest`, `:8.3-dev-stable`, `:8.4-dev-stable`, `:8.x-stable`, and `:<full-php-version>` if reused across releases.
-- Immutable (per-build) tags: `:8.3-build-<git-sha>`.
-- Note: `:<full-php-version>` reflects the PHP engine version inside the image (e.g., `8.3.11`) but may be retagged by newer builds that keep the same PHP version. Treat it as mutable unless you verify the digest.
+## What matters most
 
-#### Key environment variables
-- `DOCKER_SYNC_ENABLED=1` to enable `/home` ↔ `/homelive` sync.
-- `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` to persist `/home` on App Service (required for WordPress content persistence and sync).
-- `APACHE_DOCUMENT_ROOT=/home/site/wwwroot` (default)
-- `APACHE_SITE_ROOT=/home/site/` (default)
-- `APACHE_LOG_DIR=/home/LogFiles/sync/apache2` (default)
-- `WP_CONTENT_ROOT=/home/site/wwwroot/wp-content` (default)
-- `WORDPRESS_CONFIG_EXTRA` for local overrides (e.g., disable SSL for local DB).
-- `USE_SYSTEM_CRON=1` to run WP cron via system cron (default); set to `0` to use WP's built-in cron.
-- New Relic: `NEWRELIC_KEY`, `WEBSITE_HOSTNAME` (agent install is best-effort).
+This image keeps WordPress fast by serving from `/homelive` and syncing that live tree with the persistent `/home` volume. On Azure App Service, that tradeoff matters because persistent storage is durable but slow.
 
-#### Logs and health
-- Healthcheck: HTTP on `/` every 30s.
-- Logs: `/home/LogFiles/sync`, Apache at `/home/LogFiles/sync/apache2`.
-- Supervisord manages: apache2, cron, ssh, syncinit, sync (Unison).
+## Image variants
 
-#### First-time WordPress install (Azure App Service)
-- Database: provision MySQL and add an App Setting named `MYSQLCONNSTR_defaultConnection` with the Azure-style connection string:
-  - `Data Source=<host>;Database=<db>;User Id=<user>;Password=<pass>`
-- Image tag: use an immutable per-build tag (see below). Enable a staging slot with Health check for zero-downtime.
-- App settings (recommended):
-  - `DOCKER_SYNC_ENABLED=1` (sync /home ↔ /homelive for performance)
-  - Optional: `HOST_DOMAIN=<your-domain>` (ensures correct `WP_HOME`/`WP_SITEURL`), `WORDPRESS_CONFIG_EXTRA` for small overrides
-- First boot behavior (automatic):
-  - Downloads WordPress core to `/home/site/wwwroot` if missing
-  - Creates `/home/site/wwwroot/wp-config.php` from the bundled template, reading `MYSQLCONNSTR_defaultConnection`
-  - Sets up cron and log rotation; adjusts Apache to use `/homelive` if `DOCKER_SYNC_ENABLED` is set
-- Complete setup: browse to your site domain and follow the WordPress installer.
-- .htaccess: WordPress normally writes this. If needed, copy our template to `/home/site/wwwroot/.htaccess` (persisted storage) from `file-templates/htaccess-template`.
+- **Moving tags**: `:8.3-latest`, `:8.4-latest`, `:8.3-dev-latest`, `:8.4-dev-latest`, `:8.3-dev-stable`, `:8.4-dev-stable`, `:8.x-stable`, and sometimes `:<full-php-version>` when reused across releases.
+- **Immutable tags**: `:8.3-build-<git-sha>`.
+- **Important note**: `:<full-php-version>` reflects the PHP engine version in the image, such as `8.3.11`, but it can still move if a later build keeps that same PHP version. Treat it as mutable unless you pin by digest.
 
-#### WordPress Azure Monitor plugin
-- Bundled at `/opt/wordpress-azure-monitor` and mirrored to `/home/site/wwwroot/wp-content/plugins/wordpress-azure-monitor` on container start.
-- Auto-activation: set `WAZM_AUTO_ACTIVATE=1` in App Settings. Once WordPress core is installed, the container attempts to activate the plugin via WP‑CLI.
-- Manual activation (alternative):
+## Key environment variables
+
+- `DOCKER_SYNC_ENABLED=1`: Enable `/home` ↔ `/homelive` sync.
+- `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true`: Persist `/home` on App Service. This is required for WordPress content to survive restarts.
+- `APACHE_DOCUMENT_ROOT=/home/site/wwwroot`: Default document root.
+- `APACHE_SITE_ROOT=/home/site/`: Default site root.
+- `APACHE_LOG_DIR=/home/LogFiles/sync/apache2`: Default Apache log path.
+- `WP_CONTENT_ROOT=/home/site/wwwroot/wp-content`: Default content root.
+- `WORDPRESS_CONFIG_EXTRA`: Add small local overrides.
+- `USE_SYSTEM_CRON=1`: Run WordPress cron through the system scheduler. Set it to `0` to use WordPress's built-in cron.
+- `NEWRELIC_KEY` and `WEBSITE_HOSTNAME`: Enable New Relic when needed. Installation is best-effort.
+
+## Logs and health
+
+- Health check: HTTP on `/` every 30 seconds.
+- Sync logs: `/home/LogFiles/sync`
+- Apache logs: `/home/LogFiles/sync/apache2`
+- Managed processes: Apache, cron, SSH, `syncinit`, and Unison under `supervisord`
+
+## First-time Azure App Service install
+
+### 1. Set the database connection
+
+Create an App Setting named `MYSQLCONNSTR_defaultConnection` with an Azure-style connection string:
+
+```text
+Data Source=<host>;Database=<db>;User Id=<user>;Password=<pass>
 ```
-wp plugin activate wordpress-azure-monitor
-```
-- To reinstall or activate after removal, run: `wp-azure-tools plugin-reinstall -a`
 
-#### wp-azure-tools CLI
-- Maintenance helper available inside the container; run `wp-azure-tools` for usage.
-- Common commands: `status`, `plugin-reinstall [-a]`, `rotate-logs`, `fix-perms`, `ensure-uploads`, `run-cron`, `seed-logs`, `seed-content`, `bootstrap-core`, `bootstrap-config`.
-- See [docs/wp-azure-tools.md](docs/wp-azure-tools.md) for details.
+### 2. Choose the image tag
 
-#### Azure App Service deployment guidance
-- Use immutable per-build tags in production (e.g., `bluegrassdigital/wordpress-azure-sync:8.3-build-<git-sha>`), or pin by digest. Avoid `:latest`, `:stable`, and `:<full-php-version>` if you require strict immutability.
-- For zero-downtime, deploy to a staging slot with Health check enabled (e.g., `/` or `/healthz`) and swap once healthy. A single-instance app updated in-place may have a brief interruption.
-- To apply updates, change the configured image tag or restart the app/slot so App Service pulls the new image. If you wire up webhooks/CD to your registry, a new push to the same tag can trigger an automatic pull + restart.
-- Security/patches: we publish patched images (new immutable tags) when upstream components update. Track releases and move to the newer immutable tag via your staging → prod flow.
+Use an immutable per-build tag in production. A staging slot with Health Check enabled is the safest place to test it.
 
-Deploying files to `/home` (zip deploy/FTP)
-- When `DOCKER_SYNC_ENABLED=1`, Apache serves from `/homelive`, and a background sync pushes changes from `/homelive` → `/home`.
-- Files deployed directly to `/home/site/wwwroot` (zip deploy/FTP) will not be visible while sync is enabled.
-  - Restart the app/slot to pick up the changes. Avoid manual rsync while Unison is running.
+### 3. Add the core settings
 
-Practical flow
-- Configure staging slot with an immutable per-build tag (e.g., `:8.3-build-<git-sha>`), or pin by digest.
-- Validate, then swap slots.
+- `DOCKER_SYNC_ENABLED=1`
+- `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true`
+- Optional: `HOST_DOMAIN=<your-domain>`
+- Optional: `WORDPRESS_CONFIG_EXTRA=<php code>`
+- Optional: `WAZM_AUTO_ACTIVATE=1`
 
-#### Available tags (what to pick)
-- Use for production: `:8.3-build-<git-sha>` (immutable per commit) or a digest pin.
-- Acceptable for non-production: `:<full-php-version>` (may move if multiple releases share the same PHP version).
-- Avoid in production: `:8.3-latest`, `:8.4-latest`, `:8.x-stable` (moving tags).
+### 4. Know what first boot does
 
-#### Upgrades
-- To add a PHP version, build with `--build-arg PHP_VERSION=...` and add targets in `docker-bake.hcl` and CI matrix.
-- Imagick pinned to 3.8.0 for PHP 8.4+ compatibility.
+On first boot, the container:
 
+- downloads WordPress core to `/home/site/wwwroot` if it is missing
+- creates `/home/site/wwwroot/wp-config.php` from the bundled template
+- reads `MYSQLCONNSTR_defaultConnection`
+- sets up cron and log rotation
+- switches Apache to `/homelive` when sync is enabled
 
-#### Release process
-- See `RELEASING.md` for tag semantics, weekly vs feature releases, and changelog workflow.
+### 5. Finish setup
 
+Open the site in a browser and complete the WordPress installer.
 
+WordPress usually writes `.htaccess` on its own. If you need a starting file, copy `file-templates/htaccess-template` into `/home/site/wwwroot/.htaccess`.
+
+## WordPress Azure Monitor plugin
+
+The image bundles the plugin at `/opt/wordpress-azure-monitor` and mirrors it into `/home/site/wwwroot/wp-content/plugins/wordpress-azure-monitor` on container start.
+
+To activate it:
+
+- set `WAZM_AUTO_ACTIVATE=1` in App Settings, or
+- run `wp plugin activate wordpress-azure-monitor`, or
+- run `wp-azure-tools plugin-reinstall -a`
+
+## wp-azure-tools CLI
+
+`wp-azure-tools` is the maintenance helper inside the container. Use it for routine tasks such as `status`, `plugin-reinstall`, `rotate-logs`, `fix-perms`, `ensure-uploads`, `run-cron`, `seed-logs`, `seed-content`, `bootstrap-core`, and `bootstrap-config`.
+
+For command details, see [docs/wp-azure-tools.md](docs/wp-azure-tools.md).
+
+## Deployment guidance
+
+- Use immutable per-build tags in production, such as `bluegrassdigital/wordpress-azure-sync:8.3-build-<git-sha>`, or pin by digest.
+- Avoid `:latest`, `:stable`, and `:<full-php-version>` if you need strict immutability.
+- Deploy to a staging slot with Health Check enabled, then swap after the slot is healthy.
+- To roll out a new image, change the configured tag or restart the app so App Service pulls the image.
+- Follow releases and move forward to newer immutable tags as upstream patches arrive.
+
+## Deploying files to `/home`
+
+When `DOCKER_SYNC_ENABLED=1`, Apache serves from `/homelive`. Files pushed directly to `/home/site/wwwroot` through Zip Deploy or FTP will not appear until the app restarts.
+
+If you deploy files to `/home`, restart the app or slot. Do not run manual `rsync` while Unison is active.
+
+## Which tag to use
+
+- **Production**: `:8.3-build-<git-sha>` or a pinned digest
+- **Non-production**: `:<full-php-version>` if a moving tag is acceptable
+- **Avoid in production**: `:8.3-latest`, `:8.4-latest`, `:8.x-stable`
+
+## Upgrades
+
+- To add a PHP version, build with `--build-arg PHP_VERSION=...` and update `docker-bake.hcl` plus the CI matrix.
+- `imagick` is pinned to `3.8.0` for PHP 8.4+ compatibility.
+
+## Release process
+
+See [RELEASING.md](RELEASING.md) for tag policy, release cadence, and changelog workflow.

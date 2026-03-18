@@ -1,52 +1,84 @@
-### Releasing
+# Releasing
 
-This document defines how we ship images, manage tags, and write changelogs.
+This document explains how images are tagged, how releases are cut, and how changelogs are maintained.
 
-#### Image tags (summary)
-- Moving tags (mutable): `:8.3-latest`, `:8.4-latest`, `:8.3-dev-latest`, `:8.4-dev-latest`, `:8.3-dev-stable`, `:8.4-dev-stable`, `:8.x-stable`
-- Immutable (per build): `:8.3-stable-<YYYYMMDDHHMMSS>`, `:8.4-stable-<YYYYMMDDHHMMSS>`, and full PHP engine tags like `:8.3.11` (prod) and `:8.3.11-dev` (dev)
-  - CI sets `BUILD_DATE=$(date +%Y%m%d%H%M%S)` to generate the `<YYYYMMDDHHMMSS>` suffix
-- Dev images only receive moving tags (`-dev-latest` and, when triggered by tags or the weekly schedule, `-dev-stable`); no per-build dev tags are produced.
+## Tag summary
 
-Production consumers should use immutable per-build tags (or digests). Moving tags are for convenience/testing.
+- **Moving tags**: `:8.3-latest`, `:8.4-latest`, `:8.3-dev-latest`, `:8.4-dev-latest`, `:8.3-dev-stable`, `:8.4-dev-stable`, `:8.x-stable`
+- **Immutable production tags**: `:8.3-stable-<YYYYMMDDHHMMSS>`, `:8.4-stable-<YYYYMMDDHHMMSS>`, and full PHP engine tags such as `:8.3.11`
+- **Dev image tags**: moving tags like `-dev-latest` and `-dev-stable`; there are no per-build dev tags
 
-#### Cadence
-- Weekly maintenance (automated): A scheduled CI job builds fresh images to pull in upstream security/OS/PHP updates
-  - Expected outputs: new `:8.x-latest`, `:8.x-dev-latest`, `:8.x-dev-stable`, and new immutable `:8.x-stable-<YYYYMMDDHHMMSS>`
-  - Policy: keep a moving `:8.x-stable` pointing to the latest weekly build for each supported minor version
-    - Result: there is always a stable tag available that reflects the most recent weekly build
+CI sets `BUILD_DATE=$(date +%Y%m%d%H%M%S)` to create the timestamp suffix.
 
-- Feature release (manual): When notable changes land (features, hardening), cut a repository tag (e.g., `v2025.08.21` or `v1.2.0`)
-  - Expected outputs: multi-arch images, update `:8.x-stable`, and create the full PHP engine version tags `:<full-php-version>` and `:<full-php-version>-dev`
-  - Also publish a GitHub Release with the changelog section for that tag
+Production users should pin to immutable tags or digests. Moving tags are for convenience.
 
-Note: Production users should still pin to immutable tags even though `:8.x-stable` is maintained; stable remains a moving tag.
+## Release cadence
 
-#### Changelogs
-- Source of truth: `CHANGELOG.md` in the repo root
-- Workflow:
-  1) Keep an `Unreleased` section up to date during development
-  2) On feature release, move items from `Unreleased` to a new dated/semver section and commit
-  3) Create a Git tag for the release and publish a GitHub Release using the same notes
+### Weekly maintenance release
 
-#### Tagging procedures
-- Weekly maintenance (automated by CI):
-  - CI builds both prod and dev images for each PHP minor (e.g., 8.3, 8.4)
-  - CI publishes `:8.x-latest`/`:8.x-dev-latest` and date-stamped tags `:8.x-stable-<YYYYMMDDHHMMSS>`
-  - CI updates `:8.x-stable` and `:8.x-dev-stable` to point to the latest weekly build for each minor
+A scheduled CI job rebuilds images to pick up upstream security and OS updates.
 
-- Feature release (manual):
-  1) Update `CHANGELOG.md` moving `Unreleased` to a new section
-  2) Tag the repo: `git tag -a vYYYY.MM.DD -m "Release vYYYY.MM.DD" && git push --tags`
-  3) CI builds multi-arch images, updates `:8.x-stable`, and creates full PHP version tags `:<full-php-version>` and `:<full-php-version>-dev`
-  4) Publish a GitHub Release using the changelog section
+Expected results:
 
-#### Rollback guidance
-- Prefer switching production to a previously validated immutable tag `:8.x-stable-<YYYYMMDDHHMMSS>` (or a pinned digest)
-- Avoid relying on moving tags (`:latest`, `:stable`) for rollbacks
+- fresh `:8.x-latest` tags
+- fresh `:8.x-dev-latest` tags
+- fresh `:8.x-dev-stable` tags
+- fresh immutable `:8.x-stable-<YYYYMMDDHHMMSS>` tags
+- an updated moving `:8.x-stable` tag for each supported minor version
 
-#### Notes
-- `:8.x-stable` is convenient for non-production environments and for consumers that want a maintained moving tag; it should not be used where strict immutability is required
-- CI includes vulnerability scanning (Trivy). Security posture is primarily maintained via weekly rebuilds + upstream patches.
+### Feature release
 
+When notable changes land, cut a repository tag such as `v2025.08.21` or `v1.2.0`.
 
+Expected results:
+
+- new multi-architecture images
+- updated `:8.x-stable` tags
+- full PHP engine tags such as `:<full-php-version>` and `:<full-php-version>-dev`
+- a GitHub Release built from the matching changelog entry
+
+Even here, production should still pin to immutable tags.
+
+## Changelog workflow
+
+`CHANGELOG.md` is the source of truth.
+
+1. Keep the `Unreleased` section current while work is in progress.
+2. On a feature release, move those entries into a new dated or semver section.
+3. Tag the repo and publish a GitHub Release using the same notes.
+
+## Tagging procedures
+
+### Weekly maintenance
+
+CI handles this flow:
+
+- build prod and dev images for each supported PHP minor version
+- publish `:8.x-latest` and `:8.x-dev-latest`
+- publish date-stamped tags `:8.x-stable-<YYYYMMDDHHMMSS>`
+- update `:8.x-stable` and `:8.x-dev-stable` to the newest weekly build
+
+### Feature release
+
+1. Update `CHANGELOG.md` by moving `Unreleased` items into a new release section.
+2. Tag the repository:
+
+```bash
+git tag -a vYYYY.MM.DD -m "Release vYYYY.MM.DD"
+git push --tags
+```
+
+3. Let CI build the multi-arch images, update `:8.x-stable`, and create the full PHP version tags.
+4. Publish a GitHub Release from the changelog section.
+
+## Rollback guidance
+
+Roll back to a previously validated immutable tag such as `:8.x-stable-<YYYYMMDDHHMMSS>` or to a pinned digest.
+
+Do not rely on moving tags like `:latest` or `:stable` for rollback.
+
+## Notes
+
+- `:8.x-stable` is convenient for non-production use, but it is still a moving tag.
+- CI includes Trivy scanning.
+- Security posture depends mainly on weekly rebuilds and upstream patches.
