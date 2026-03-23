@@ -52,7 +52,7 @@ jobs:
 
       - name: Build and push (prod, multi-arch)
         id: build_prod
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
@@ -71,7 +71,7 @@ jobs:
 
       - name: Build and push (dev, multi-arch)
         id: build_dev
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
