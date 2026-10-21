@@ -34,6 +34,7 @@ Optimized WordPress container for Azure App Service (Linux) with App Service Sto
   - Then point your compose file to `local/wordpress-azure:8.4-dev`.
 - WordPress administrators: see [`docs/wordpress-azure-monitor.md`](docs/wordpress-azure-monitor.md) for the optional Azure Monitor plugin
 - Release process: see [`RELEASING.md`](RELEASING.md) for tags, changelogs, weekly vs feature releases
+- Emergency PHP source builds: see [`php-source/`](php-source/README.md) for the pinned Apache/Bookworm fallback and local checks
 
 ## License
 MIT

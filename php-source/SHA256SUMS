@@ -1,0 +1,15 @@
+929fa4b9ccd6cd32863078f0de457dcba86e96223a35a7aaa9b6a852f3669554  php-source/8.3/apache2-foreground
+9525db1c721aff288d7b975e12f60a56c998ab86a7c3ab629e70fc061617c977  php-source/8.3/docker-php-entrypoint
+2464740142f245e2ff4539b9773fc37b7637407ba569da9d1961f91a13623edd  php-source/8.3/docker-php-ext-configure
+861e94e4199f770f433cf5b3dca26fecb14401170a1140c41b79f9c9713cdc7f  php-source/8.3/docker-php-ext-enable
+3486e85b6a1626f63a6b22254b940b6158515cdcb7fb29ec62e805e46330c51d  php-source/8.3/docker-php-ext-install
+35db863f9c436fd8d04c25262a9fc5c78daa0d79efd1a606f23bbc4e2980c736  php-source/8.3/docker-php-source
+00f7f119781d4e4d5f38b04adb4f984ef98c9571d9d53b4111a5931ce5719aa1  php-source/8.3/Dockerfile
+929fa4b9ccd6cd32863078f0de457dcba86e96223a35a7aaa9b6a852f3669554  php-source/8.4/apache2-foreground
+9525db1c721aff288d7b975e12f60a56c998ab86a7c3ab629e70fc061617c977  php-source/8.4/docker-php-entrypoint
+2464740142f245e2ff4539b9773fc37b7637407ba569da9d1961f91a13623edd  php-source/8.4/docker-php-ext-configure
+861e94e4199f770f433cf5b3dca26fecb14401170a1140c41b79f9c9713cdc7f  php-source/8.4/docker-php-ext-enable
+3486e85b6a1626f63a6b22254b940b6158515cdcb7fb29ec62e805e46330c51d  php-source/8.4/docker-php-ext-install
+35db863f9c436fd8d04c25262a9fc5c78daa0d79efd1a606f23bbc4e2980c736  php-source/8.4/docker-php-source
+2df4b12a180a280891e2e2a58f6ee2f430b680b1ae035129aeec4ac6c4890de5  php-source/8.4/Dockerfile
+0a3ffdfc4f368b76ae1140b5fbe2f2f69ee76ee00a3024e8a09ca9b2e265186f  php-source/LICENSE

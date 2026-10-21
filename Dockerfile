@@ -9,6 +9,7 @@
 # 7. Exposes SSH and HTTP ports and runs an entrypoint to initialize runtime behavior.
 
 ARG PHP_VERSION=8.3
+ARG PHP_BASE_IMAGE=php:${PHP_VERSION}-apache-bookworm
 
 # --- Build stage for Unison (kept out of the final image) ---
 FROM debian:bookworm-slim AS unison-builder
@@ -22,7 +23,7 @@ RUN set -eux; \
 	if [ -x /usr/bin/unison-fsmonitor ]; then install -Dm755 /usr/bin/unison-fsmonitor /out/unison-fsmonitor; else echo 'echo "unison-fsmonitor not available; unison will still function"' > /out/unison-fsmonitor && chmod +x /out/unison-fsmonitor; fi
 
 # --- Final runtime image ---
-FROM php:${PHP_VERSION}-apache-bookworm AS runtime
+FROM ${PHP_BASE_IMAGE} AS runtime
 
 ARG OCI_TITLE="wordpress-azure"
 ARG OCI_DESCRIPTION="WordPress on php-apache with Azure-specific tooling (AzCopy), Unison sync, New Relic, SSH, and supervisord"
