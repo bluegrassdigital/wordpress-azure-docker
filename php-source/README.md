@@ -70,6 +70,19 @@ installation test needs a disposable database.
 
 ## Multiarch and publication
 
+The separate [emergency Actions workflow](../.github/workflows/emergency-php.yml)
+runs on pushes to `codex/emergency-php-from-source`. It builds prod and dev
+for both PHP releases on native amd64 runners, tests each image in both
+storage modes, and only then pushes those tested images to GHCR. It also
+publishes the same images to Docker Hub when the existing Docker Hub
+credentials are available. Each PHP version is tested and published in its
+own job; check that both jobs passed before selecting images for rollout.
+
+Actions tags end in `emergency-source-gha-<run-id>-<attempt>`, with `dev-`
+before `emergency-source` for development images. A rerun produces new tags.
+The run summary lists the published references. The normal publishing
+workflow and its release tags are not used by this workflow.
+
 The official architecture handling is retained. To build both architectures
 without publishing, export an OCI archive:
 
@@ -83,9 +96,10 @@ Repeat for `emergency84` with a separate output path. Validate each
 architecture before publication. Local amd64 testing on Apple Silicon uses
 emulation; it does not prove native Azure performance or arm64 behavior.
 
-This fallback does not change the publishing workflow or ordinary Bake
-targets. Do not combine the two Bake files. Publication, production tags
-and Azure deployments require separate coordination with the operator;
+This fallback does not change the normal publishing workflow or ordinary
+Bake targets. Do not combine the two Bake files. The emergency workflow
+publishes temporary tags only. Production tags and Azure deployments
+require separate coordination with the operator;
 the existing watcher may still build `master` once Docker publishes both
 patched official bases.
 

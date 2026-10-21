@@ -1,0 +1,143 @@
+name: Build and publish emergency PHP images
+
+on:
+  push:
+    branches: ["codex/emergency-php-from-source"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: emergency-php-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-test-publish:
+    if: github.ref == 'refs/heads/codex/emergency-php-from-source'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: "8.3.36"
+            target: emergency83
+            source: source83
+          - version: "8.4.27"
+            target: emergency84
+            source: source84
+    env:
+      EMERGENCY_BUILD_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+      PHP_SOURCE_PLATFORMS: linux/amd64
+    steps:
+      - name: Checkout emergency branch
+        uses: actions/checkout@v7
+
+      - name: Set image names
+        id: images
+        env:
+          PHP_RELEASE: ${{ matrix.version }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/wordpress-azure-sync"
+          prod_tag="${PHP_RELEASE}-emergency-source-${EMERGENCY_BUILD_ID}"
+          dev_tag="${PHP_RELEASE}-dev-emergency-source-${EMERGENCY_BUILD_ID}"
+          echo "EMERGENCY_IMAGE=$image" >> "$GITHUB_ENV"
+          echo "prod=$image:$prod_tag" >> "$GITHUB_OUTPUT"
+          echo "dev=$image:$dev_tag" >> "$GITHUB_OUTPUT"
+          echo "prod_tag=$prod_tag" >> "$GITHUB_OUTPUT"
+          echo "dev_tag=$dev_tag" >> "$GITHUB_OUTPUT"
+          if [[ -n "$DOCKERHUB_USERNAME" && -n "$DOCKERHUB_TOKEN" ]]; then
+            echo "dockerhub=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dockerhub=false" >> "$GITHUB_OUTPUT"
+            echo "Docker Hub credentials are unavailable; this run will publish to GHCR only."
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: steps.images.outputs.dockerhub == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Verify vendored recipes
+        run: sha256sum -c php-source/SHA256SUMS
+
+      - name: Build prod and dev for Azure amd64
+        uses: docker/bake-action@v7
+        with:
+          source: .
+          files: docker-bake.emergency.hcl
+          targets: |
+            ${{ matrix.target }}
+            ${{ matrix.target }}-dev
+          load: true
+          provenance: false
+          set: |
+            ${{ matrix.source }}.cache-from=type=gha,scope=emergency-${{ matrix.source }}-amd64
+            ${{ matrix.source }}.cache-to=type=gha,mode=max,scope=emergency-${{ matrix.source }}-amd64
+            ${{ matrix.target }}.cache-from=type=gha,scope=${{ matrix.target }}-amd64
+            ${{ matrix.target }}.cache-to=type=gha,mode=max,scope=${{ matrix.target }}-amd64
+            ${{ matrix.target }}-dev.cache-from=type=gha,scope=${{ matrix.target }}-dev-amd64
+            ${{ matrix.target }}-dev.cache-to=type=gha,mode=max,scope=${{ matrix.target }}-dev-amd64
+            ${{ matrix.target }}*.labels.org.opencontainers.image.revision=${{ github.sha }}
+            ${{ matrix.target }}*.labels.org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Test prod PHP and Apache startup
+        env:
+          IMAGE: ${{ steps.images.outputs.prod }}
+          PHP_RELEASE: ${{ matrix.version }}
+        run: bash scripts/smoke-test-php.sh "$IMAGE" "$PHP_RELEASE" runtime
+
+      - name: Test dev PHP and Apache startup
+        env:
+          IMAGE: ${{ steps.images.outputs.dev }}
+          PHP_RELEASE: ${{ matrix.version }}
+        run: bash scripts/smoke-test-php.sh "$IMAGE" "$PHP_RELEASE" dev
+
+      - name: Publish tested images to GHCR
+        env:
+          PROD_IMAGE: ${{ steps.images.outputs.prod }}
+          DEV_IMAGE: ${{ steps.images.outputs.dev }}
+        run: |
+          docker push "$PROD_IMAGE"
+          docker push "$DEV_IMAGE"
+          {
+            echo "### PHP ${{ matrix.version }} — tested linux/amd64 images"
+            echo "- \`$PROD_IMAGE\`"
+            echo "- \`$DEV_IMAGE\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish tested images to Docker Hub
+        if: steps.images.outputs.dockerhub == 'true'
+        env:
+          PROD_IMAGE: ${{ steps.images.outputs.prod }}
+          DEV_IMAGE: ${{ steps.images.outputs.dev }}
+          PROD_TAG: ${{ steps.images.outputs.prod_tag }}
+          DEV_TAG: ${{ steps.images.outputs.dev_tag }}
+        run: |
+          prod="bluegrassdigital/wordpress-azure-sync:$PROD_TAG"
+          dev="bluegrassdigital/wordpress-azure-sync:$DEV_TAG"
+          docker tag "$PROD_IMAGE" "$prod"
+          docker tag "$DEV_IMAGE" "$dev"
+          docker push "$prod"
+          docker push "$dev"
+          {
+            echo "- \`$prod\`"
+            echo "- \`$dev\`"
+          } >> "$GITHUB_STEP_SUMMARY"

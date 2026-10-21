@@ -86,5 +86,6 @@ official recipes and Bake platform selection support arm64, and the
 two-platform OCI build plan was checked without executing that build.
 
 Existing `.github/workflows/docker.yml` and `docker-bake.hcl` publishing
-edits were preserved byte for byte. No images were pushed, publishing
-workflow dispatched, branches merged or Azure sites deployed.
+edits were preserved byte for byte. During this local validation, no images
+were pushed, publishing workflow dispatched, branches merged or Azure sites
+deployed. The later emergency Actions workflow is described in the runbook.
