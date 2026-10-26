@@ -24,6 +24,18 @@ This image keeps WordPress fast by serving from `/homelive` and syncing that liv
 - `USE_SYSTEM_CRON=1`: Run WordPress cron through the system scheduler. Set it to `0` to use WordPress's built-in cron.
 - `NEWRELIC_KEY` and `WEBSITE_HOSTNAME`: Enable New Relic when needed. Installation is best-effort.
 
+## PHP session upload progress
+
+PHP session upload progress is disabled by default in both PHP branches and the production and development images. This follows the [PHP advisory for CVE-2026-115560](https://www.php.net/archive/2026.php#2026-10-23-1). It disables PHP's session-based upload progress tracking, not file uploads or normal session handling.
+
+The `PHP_SESSION_UPLOAD_PROGRESS_ENABLED` App Setting accepts `0` (disabled) or `1` (enabled). Unset and empty values keep it disabled. Other values stop container startup with an error. Use `1` only after reviewing the security implications and confirming that an application needs this feature; startup logs warn when it is enabled.
+
+The image sets `session.upload_progress.enabled` in a scanned PHP INI file before Apache starts. Do not use `ini_set()` to apply this mitigation. Changing the App Setting requires a container restart so all PHP workers read it. This is a configurable default: custom PHP scan paths, later INI files, or Apache directory settings can override it. Verify the effective setting through Apache on each running instance after deployment; a CLI check alone is insufficient.
+
+Test login, forms and media uploads in non-production before deploying a new image to production. A plugin that uses PHP's session upload progress tracking may lose its progress reporting or cancellation controls. Keep this default when the permanent PHP fix arrives unless an application needs the feature.
+
+Run `bash scripts/smoke-test-session-upload-progress.sh <image>` to check the default, explicit off, opt-in, invalid configuration, and ordinary uploads through Apache without publishing a host port.
+
 ## Logs and health
 
 - Health check: HTTP on `/` every 30 seconds.

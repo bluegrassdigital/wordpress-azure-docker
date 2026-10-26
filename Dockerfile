@@ -116,6 +116,7 @@ ENV WP_CONTENT_ROOT=/home/site/wwwroot/wp-content
 # Copy PHP conf templates
 COPY file-templates/php/conf.d/opcache-recommended.ini /usr/local/etc/php/conf.d/opcache-recommended.ini
 COPY file-templates/php/conf.d/error-logging.ini /usr/local/etc/php/conf.d/error-logging.ini
+COPY file-templates/php/conf.d/zz-session-upload-progress.ini /usr/local/etc/php/conf.d/zz-session-upload-progress.ini
 
 # Copy Apache conf templates
 COPY file-templates/apache/other-vhosts-access-log.conf /etc/apache2/conf-enabled/other-vhosts-access-log.conf
