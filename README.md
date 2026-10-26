@@ -25,6 +25,7 @@ For production, use an immutable build tag such as `bluegrassdigital/wordpress-a
 - Optional: `HOST_DOMAIN=<your-domain>`
 - Optional: `WORDPRESS_CONFIG_EXTRA=<php code>`
 - Optional: `WAZM_AUTO_ACTIVATE=1`
+- Optional: `PHP_SESSION_UPLOAD_PROGRESS_ENABLED=0` (default). Leave disabled for the PHP session upload progress mitigation; see [the operations guide](OPERATIONS.md#php-session-upload-progress).
 
 ### 3. Know what first boot does
 
