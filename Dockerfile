@@ -192,7 +192,11 @@ ENV WEBSITE_INSTANCE_ID=localInstance
 COPY docker-entrypoint.sh /usr/local/bin/
 COPY scripts/fix-wordpress-permissions.sh /usr/local/bin/
 COPY scripts/sync-init.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/fix-wordpress-permissions.sh /usr/local/bin/sync-init.sh
+COPY scripts/write-container-env.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+    /usr/local/bin/fix-wordpress-permissions.sh \
+    /usr/local/bin/sync-init.sh \
+    /usr/local/bin/write-container-env.sh
 
 # RUN (crontab -l -u root; echo "*/10 * * * * . /etc/profile; fix-wordpress-permissions.sh /homelive/site/wwwroot > /dev/null") | crontab
 

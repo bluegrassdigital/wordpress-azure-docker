@@ -23,7 +23,7 @@ For production, use an immutable build tag such as `bluegrassdigital/wordpress-a
 - `DOCKER_SYNC_ENABLED=1`
 - Optional: `USE_SYSTEM_CRON=1`
 - Optional: `HOST_DOMAIN=<your-domain>`
-- Optional: `WORDPRESS_CONFIG_EXTRA=<php code>`
+- Optional: `WORDPRESS_CONFIG_CONSTANTS={"DISALLOW_FILE_EDIT":true}`. See [migration and supported settings](OPERATIONS.md#migrate-extra-wordpress-settings).
 - Optional: `WAZM_AUTO_ACTIVATE=1`
 - Optional: `PHP_SESSION_UPLOAD_PROGRESS_ENABLED=0` (default). Leave disabled for the PHP session upload progress mitigation; see [the operations guide](OPERATIONS.md#php-session-upload-progress).
 
