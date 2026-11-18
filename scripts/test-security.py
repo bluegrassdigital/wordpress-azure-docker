@@ -119,8 +119,9 @@ class ConfigSecurity(unittest.TestCase):
                 file_path = root / "settings.json"
                 file_path.write_text(settings_file)
                 settings["WORDPRESS_CONFIG_CONSTANTS_FILE"] = str(file_path)
+            # Send PHP CLI diagnostics to stderr even when the image uses a log file.
             return subprocess.run(
-                ["php", str(root / "wp-config.php")],
+                ["php", "-d", "log_errors=1", "-d", "error_log=", str(root / "wp-config.php")],
                 env={
                     **os.environ,
                     "HOST_DOMAIN": "wordpress.example",
