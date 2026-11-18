@@ -51,5 +51,5 @@ The plugin is mounted into both WordPress paths for live edits.
 ## Troubleshooting
 
 - **403 after first boot**: Make sure WordPress exists in `/homelive/site/wwwroot`, then restart the container to rerun sync.
-- **Database connection errors**: Check `WORDPRESS_CONFIG_EXTRA` overrides and confirm the `db` service is healthy.
+- **Database connection errors**: Check the connection string and confirm the `db` service is healthy. The template uses local database settings for `db`, `localhost`, and `127.0.0.1`.
 - **No admin bar badge**: Confirm that the plugin is active and inspect `/home/LogFiles/sync`.

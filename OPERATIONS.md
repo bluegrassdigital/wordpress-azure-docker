@@ -20,9 +20,41 @@ This image keeps WordPress fast by serving from `/homelive` and syncing that liv
 - `APACHE_SITE_ROOT=/home/site/`: Default site root.
 - `APACHE_LOG_DIR=/home/LogFiles/sync/apache2`: Default Apache log path.
 - `WP_CONTENT_ROOT=/home/site/wwwroot/wp-content`: Default content root.
-- `WORDPRESS_CONFIG_EXTRA`: Add small local overrides.
+- `WORDPRESS_CONFIG_CONSTANTS` adds supported WordPress settings as a JSON object.
 - `USE_SYSTEM_CRON=1`: Run WordPress cron through the system scheduler. Set it to `0` to use WordPress's built-in cron.
 - `NEWRELIC_KEY` and `WEBSITE_HOSTNAME`: Enable New Relic when needed. Installation is best-effort.
+
+## Migrate extra WordPress settings
+
+The generated `wp-config.php` accepts `WORDPRESS_CONFIG_CONSTANTS` as a JSON object.
+For example, set it to `{"DISALLOW_FILE_EDIT":true,"WP_MEMORY_LIMIT":"256M"}`.
+To use mounted JSON, set `WORDPRESS_CONFIG_CONSTANTS_FILE` to the absolute path
+of a readable file. The file takes precedence over the inline setting.
+
+| Settings | Accepted JSON values |
+| --- | --- |
+| `DISALLOW_FILE_EDIT`, `DISALLOW_FILE_MODS`, `AUTOMATIC_UPDATER_DISABLED`, `WP_DEBUG_DISPLAY`, `FORCE_SSL_ADMIN` | `true` or `false` |
+| `WP_MEMORY_LIMIT`, `WP_MAX_MEMORY_LIMIT` | Strings from `16M` through `2G` with an uppercase `K`, `M`, or `G` suffix |
+| `WP_ENVIRONMENT_TYPE` | `"production"`, `"staging"`, `"development"`, or `"local"` |
+
+The generated config stops WordPress bootstrap if it sees a legacy extra-config
+setting, invalid JSON, unsupported settings, or an already defined constant.
+
+1. Use a staging slot with its own site files. Check for `WORDPRESS_CONFIG_EXTRA` and
+   `WORDPRESS_CONFIG_EXTRA_FILE`. Move supported settings to the JSON object.
+   Put any custom PHP logic in a maintained `wp-config.php`.
+2. Back up the persistent `wp-config.php`. The image creates this file only if
+   it is missing. If the file uses the legacy extra-config block, update that
+   block to match the bundled template while keeping site-specific settings
+   and salts. Remove the legacy App Settings as part of the same change.
+3. Restart staging and check the site and WordPress cron before swapping slots.
+
+## Environment settings for cron and SSH
+
+Container startup replaces a root-only snapshot at
+`/etc/profile.d/wordpress-container-env.sh`. Root cron jobs and login shells
+load it through `/etc/profile`. Shell quoting preserves values with quotes,
+spaces, and newlines. Each restart writes a fresh snapshot.
 
 ## PHP session upload progress
 
@@ -62,7 +94,7 @@ Use an immutable per-build tag in production. A staging slot with Health Check e
 - `DOCKER_SYNC_ENABLED=1`
 - `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true`
 - Optional: `HOST_DOMAIN=<your-domain>`
-- Optional: `WORDPRESS_CONFIG_EXTRA=<php code>`
+- Optional: `WORDPRESS_CONFIG_CONSTANTS={"DISALLOW_FILE_EDIT":true}`
 - Optional: `WAZM_AUTO_ACTIVATE=1`
 
 ### 4. Know what first boot does

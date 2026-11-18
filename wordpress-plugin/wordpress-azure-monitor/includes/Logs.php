@@ -13,6 +13,42 @@ class WAZM_Logs
     private const CACHE_KEY = 'wazm_whitelisted_logs';
 
     /**
+     * Resolve a log path and allow only readable regular files under the log roots.
+     * Symlinks are allowed when their final target remains inside an approved root.
+     */
+    public static function resolve_log_path(string $path): ?string
+    {
+        return self::resolve_path_within_roots($path, ['/home/LogFiles', '/homelive/LogFiles']);
+    }
+
+    /**
+     * Resolve a log path under the supplied roots. Kept private so callers cannot
+     * widen the production allowlist; tests may exercise it through reflection.
+     */
+    private static function resolve_path_within_roots(string $path, array $roots): ?string
+    {
+        // PHP stream wrappers are not valid filesystem log paths.
+        if (strpos($path, '://') !== false) {
+            return null;
+        }
+
+        clearstatcache(true, $path);
+        $resolved = realpath($path);
+        if ($resolved === false || !is_file($resolved) || !is_readable($resolved)) {
+            return null;
+        }
+
+        foreach ($roots as $root) {
+            $root = rtrim($root, '/') . '/';
+            if (strpos($resolved, $root) === 0) {
+                return $resolved;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Whitelist of allowed log files with strict path validation
      * @return array
      */
@@ -20,8 +56,31 @@ class WAZM_Logs
     {
         // Try to get from cache first
         $cached = wp_cache_get(self::CACHE_KEY, 'wazm');
-        if ($cached !== false) {
-            return $cached;
+        if (is_array($cached)) {
+            $validated = [];
+            foreach ($cached as $key => $meta) {
+                if (!is_array($meta) || !isset($meta['path']) || !is_string($meta['path'])) {
+                    continue;
+                }
+
+                $resolved = self::resolve_log_path($meta['path']);
+                if ($resolved === null) {
+                    continue;
+                }
+
+                $size = filesize($resolved);
+                if ($size === false || $size > 50 * 1024 * 1024) {
+                    continue;
+                }
+
+                $validated[$key] = [
+                    'label' => isset($meta['label']) ? (string) $meta['label'] : (string) $key,
+                    'path' => $resolved,
+                ];
+            }
+
+            // Cached paths may have changed since they were listed; return only safe targets.
+            return $validated;
         }
 
         // Prefer homelive paths (sync-enabled) and fall back to home variants
@@ -74,34 +133,39 @@ class WAZM_Logs
         $map = [];
         foreach ($candidates as $key => $paths) {
             foreach ($paths as $p) {
+                $resolved = self::resolve_log_path($p);
+                if ($resolved === null) {
+                    continue;
+                }
+
                 if ($key === 'cron') {
                     // For cron, require non-empty file to avoid preferring a 0B placeholder
-                    if (is_file($p) && is_readable($p)) {
-                        $size = filesize($p);
-                        if ($size !== false && $size === 0) {
-                            continue;
-                        }
+                    $size = filesize($resolved);
+                    if ($size === false || $size === 0) {
+                        continue;
                     }
                 }
-                if (is_file($p) && is_readable($p)) {
-                    $map[$key] = [
-                        'label' => $labels[$key],
-                        'path' => $p,
-                    ];
-                    break; // prefer the first existing candidate
-                }
+
+                $map[$key] = [
+                    'label' => $labels[$key],
+                    'path' => $resolved,
+                ];
+                break; // prefer the first safe, existing candidate
             }
         }
 
         // Only include files that exist and are readable
         foreach ($map as $key => $meta) {
-            if (!is_file($meta['path']) || !is_readable($meta['path'])) {
+            $resolved = self::resolve_log_path($meta['path']);
+            if ($resolved === null) {
                 unset($map[$key]);
                 continue;
             }
 
+            $map[$key]['path'] = $resolved;
+
             // Check file size (max 50MB)
-            $size = filesize($meta['path']);
+            $size = filesize($resolved);
             if ($size === false || $size > 50 * 1024 * 1024) {
                 unset($map[$key]);
                 continue;
@@ -124,9 +188,10 @@ class WAZM_Logs
         foreach ($patterns as $pattern) {
             $matches = glob($pattern) ?: [];
             foreach ($matches as $m) {
-                if (is_file($m) && is_readable($m)) {
-                    $mtime = @filemtime($m) ?: 0;
-                    $candidates[$m] = $mtime;
+                $resolved = self::resolve_log_path($m);
+                if ($resolved !== null) {
+                    $mtime = @filemtime($resolved) ?: 0;
+                    $candidates[$resolved] = $mtime;
                 }
             }
         }
@@ -149,12 +214,15 @@ class WAZM_Logs
     public static function tail_file(string $path, int $lines = 500): string
     {
         // Validate path is in our whitelist
+        $resolved = self::resolve_log_path($path);
         $allowed_paths = array_column(self::get_whitelisted_logs(), 'path');
-        if (!in_array($path, $allowed_paths, true)) {
+        if ($resolved === null || !in_array($resolved, $allowed_paths, true)) {
             return 'Access denied: Invalid log file.';
         }
 
-        if (!is_readable($path)) {
+        // Revalidate immediately before reading in case the path changed after listing.
+        $resolved = self::resolve_log_path($resolved);
+        if ($resolved === null) {
             return 'Log not readable or does not exist.';
         }
 
@@ -163,7 +231,7 @@ class WAZM_Logs
 
         try {
             // Use more efficient tail approach
-            $content = self::read_file_tail($path, $lines);
+            $content = self::read_file_tail($resolved, $lines);
             return $content;
         } catch (Exception $e) {
             error_log('WAZM Logs Error: ' . $e->getMessage());

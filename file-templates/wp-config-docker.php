@@ -148,8 +148,82 @@ if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROT
 }
 // (we include this by default because reverse proxying is extremely common in container environments)
 
-if ($configExtra = getenv_docker('WORDPRESS_CONFIG_EXTRA', '')) {
-  eval($configExtra);
+// Configuration values must remain data, never executable PHP from the environment.
+if ((string) getenv('WORDPRESS_CONFIG_EXTRA') !== '' || (string) getenv('WORDPRESS_CONFIG_EXTRA_FILE') !== '') {
+  throw new RuntimeException('WORDPRESS_CONFIG_EXTRA is no longer supported. Move constants to WORDPRESS_CONFIG_CONSTANTS JSON, or maintain a reviewed wp-config.php.');
+}
+
+$configConstants = (string) getenv('WORDPRESS_CONFIG_CONSTANTS');
+if ($configConstants === '') {
+  $configConstants = null;
+}
+$configConstantsFile = (string) getenv('WORDPRESS_CONFIG_CONSTANTS_FILE');
+if ($configConstantsFile !== '') {
+  if ($configConstantsFile[0] !== '/' || !is_file($configConstantsFile) || !is_readable($configConstantsFile)) {
+    throw new RuntimeException('WORDPRESS_CONFIG_CONSTANTS_FILE must point to a readable local file.');
+  }
+  $configConstants = file_get_contents($configConstantsFile);
+  if ($configConstants === false) {
+    throw new RuntimeException('Could not read WORDPRESS_CONFIG_CONSTANTS_FILE.');
+  }
+}
+
+if ($configConstants !== null) {
+  try {
+    $extraConstants = json_decode($configConstants, false, 512, JSON_THROW_ON_ERROR);
+  } catch (JsonException $e) {
+    throw new RuntimeException('WORDPRESS_CONFIG_CONSTANTS must be a valid JSON object.', 0, $e);
+  }
+
+  if (!($extraConstants instanceof stdClass)) {
+    throw new RuntimeException('WORDPRESS_CONFIG_CONSTANTS must be a JSON object.');
+  }
+
+  $booleanConstants = [
+    'DISALLOW_FILE_EDIT',
+    'DISALLOW_FILE_MODS',
+    'AUTOMATIC_UPDATER_DISABLED',
+    'WP_DEBUG_DISPLAY',
+    'FORCE_SSL_ADMIN',
+  ];
+  $memoryConstants = ['WP_MEMORY_LIMIT', 'WP_MAX_MEMORY_LIMIT'];
+  $allowedConstants = array_merge($booleanConstants, $memoryConstants, ['WP_ENVIRONMENT_TYPE']);
+  $environmentTypes = ['production', 'staging', 'development', 'local'];
+
+  // Validate the whole object before applying any constants.
+  foreach ($extraConstants as $name => $value) {
+    if (!in_array($name, $allowedConstants, true) || defined($name)) {
+      throw new RuntimeException('WORDPRESS_CONFIG_CONSTANTS contains an unsupported or already defined constant.');
+    }
+
+    if (in_array($name, $booleanConstants, true)) {
+      if (!is_bool($value)) {
+        throw new RuntimeException('WORDPRESS_CONFIG_CONSTANTS boolean settings require JSON true or false.');
+      }
+      continue;
+    }
+
+    if (in_array($name, $memoryConstants, true)) {
+      if (!is_string($value) || !preg_match('/^([1-9][0-9]{0,6})(K|M|G)$/D', $value, $matches)) {
+        throw new RuntimeException('WORDPRESS_CONFIG_CONSTANTS memory limits must use a positive K, M, or G size.');
+      }
+
+      $size = (int) $matches[1];
+      $multiplier = ['K' => 1024, 'M' => 1024 * 1024, 'G' => 1024 * 1024 * 1024][$matches[2]];
+      $bytes = $size * $multiplier;
+      if ($bytes < 16 * 1024 * 1024 || $bytes > 2 * 1024 * 1024 * 1024) {
+        throw new RuntimeException('WORDPRESS_CONFIG_CONSTANTS memory limits must be between 16M and 2G.');
+      }
+      continue;
+    }
+
+    if ($name === 'WP_ENVIRONMENT_TYPE' && (!is_string($value) || !in_array($value, $environmentTypes, true))) {
+      throw new RuntimeException('WORDPRESS_CONFIG_CONSTANTS WP_ENVIRONMENT_TYPE must be production, staging, development, or local.');
+    }
+  }
+  foreach ($extraConstants as $name => $value) {
+    define($name, $value);
+  }
 }
 
 

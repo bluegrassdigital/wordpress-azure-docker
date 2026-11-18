@@ -226,14 +226,8 @@ add_action('wp_ajax_wazm_download_log', function () {
             wp_die(__('Invalid log file.'), 400);
         }
 
-        $file = $allowed[$selected_key]['path'];
-
-        // Additional security check
-        if (!in_array($file, array_column($allowed, 'path'))) {
-            wp_die(__('Access denied.'), 403);
-        }
-
-        if (!is_readable($file)) {
+        $file = WAZM_Logs::resolve_log_path($allowed[$selected_key]['path']);
+        if ($file === null) {
             wp_die(__('Log file not readable.'), 404);
         }
 

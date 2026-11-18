@@ -19,7 +19,8 @@ fi
 
 cd /homelive/site/wwwroot
 
-# export env to /etc/profile for subshells
-eval $(printenv | sed -n "s/^\([^=]\+\)=\(.*\)$/export \1=\2/p" | sed 's/"/\\\"/g' | sed '/=/s//="/' | sed 's/$/"/' >> /etc/profile)
+# Keep cron and root login shell settings in one startup snapshot.
+install -d -m 0755 /etc/profile.d
+/usr/local/bin/write-container-env.sh /etc/profile.d/wordpress-container-env.sh
 
 exec "$@"
