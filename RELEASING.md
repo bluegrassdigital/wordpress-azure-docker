@@ -4,9 +4,10 @@ This document explains how images are tagged, how releases are cut, and how chan
 
 ## Tag summary
 
-- **Moving tags**: `:8.3-latest`, `:8.4-latest`, `:8.3-dev-latest`, `:8.4-dev-latest`, `:8.3-dev-stable`, `:8.4-dev-stable`, `:8.x-stable`
-- **Immutable production tags**: `:8.3-stable-<YYYYMMDDHHMMSS>`, `:8.4-stable-<YYYYMMDDHHMMSS>`, and full PHP engine tags such as `:8.3.11`
-- **Dev image tags**: moving tags like `-dev-latest` and `-dev-stable`; there are no per-build dev tags
+- Each PHP branch has moving tags `:8.x-latest`, `:8.x-stable`, `:8.x-dev-latest`, and `:8.x-dev-stable`.
+- Production builds have a timestamped tag such as `:8.3-stable-<YYYYMMDDHHMMSS>`.
+- Branch and release builds also publish a production revision tag, `:8.x-build-<git-sha>`. A rebuild of the same commit can update this tag.
+- Feature releases publish full PHP engine tags like `:8.3.11` and `:8.3.11-dev`. A later release using the same PHP patch can update these tags.
 
 CI sets `BUILD_DATE=$(date +%Y%m%d%H%M%S)` to create the timestamp suffix.
 
@@ -53,7 +54,7 @@ Even here, production should still pin to immutable tags.
 
 CI handles this flow:
 
-- build prod and dev images for each supported PHP minor version
+- build prod and dev images for each PHP branch configured in the latest release tag
 - publish `:8.x-latest` and `:8.x-dev-latest`
 - publish date-stamped tags `:8.x-stable-<YYYYMMDDHHMMSS>`
 - update `:8.x-stable` and `:8.x-dev-stable` to the newest weekly build
@@ -69,7 +70,7 @@ git push --tags
 ```
 
 3. Let CI build the multi-arch images, update `:8.x-stable`, and create the full PHP version tags.
-4. Publish a GitHub Release from the changelog section.
+4. After the image builds succeed, CI publishes a GitHub Release from the changelog section.
 
 ## Rollback guidance
 

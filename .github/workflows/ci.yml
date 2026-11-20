@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php_version: ["8.3", "8.4"]
+        php_version: ["8.3", "8.4", "8.5", "8.6"]
         target: [runtime, dev]
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -56,6 +56,19 @@ jobs:
           tags: local/wazm:ci
           cache-from: type=gha,scope=ci-${{ matrix.php_version }}-${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=ci-${{ matrix.php_version }}-${{ matrix.target }}
+
+      - name: Verify PHP and WordPress on Apache
+        env:
+          PHP_BRANCH: ${{ matrix.php_version }}
+          IMAGE_VARIANT: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          version="$(docker run --rm --entrypoint printenv local/wazm:ci PHP_VERSION)"
+          if [[ "$version" != "$PHP_BRANCH".* ]]; then
+            echo "Expected PHP $PHP_BRANCH, found $version" >&2
+            exit 1
+          fi
+          bash scripts/smoke-test-php.sh local/wazm:ci "$version" "$IMAGE_VARIANT"
 
       - name: Check runtime hardening
         run: |
