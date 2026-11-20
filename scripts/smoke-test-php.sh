@@ -164,6 +164,7 @@ echo json_encode([
     'version' => PHP_VERSION,
     'sapi' => PHP_SAPI,
     'extensions' => \$loaded,
+    'apcu' => extension_loaded('apcu'),
 ], JSON_UNESCAPED_SLASHES);
 PHP
 
@@ -179,6 +180,10 @@ PHP
             return 1
           fi
         done
+        if [[ "$response" != *'"apcu":false'* ]]; then
+          echo "[php-smoke] HTTP PHP probe expected APCu to be absent: $response" >&2
+          return 1
+        fi
         docker exec "$container" rm -f "$probe"
         echo "[php-smoke] HTTP probe reports PHP $EXPECTED_VERSION via apache2handler with required extensions"
         return 0
@@ -227,7 +232,13 @@ run_application_case() {
   fi
 
   assert_cli_version "$container"
-  local required_extensions="apcu,bcmath,exif,gd,mysqli,zip,opcache,soap,pdo,pdo_mysql,imagick"
+  local required_extensions="bcmath,exif,gd,mysqli,zip,opcache,soap,pdo,pdo_mysql,imagick"
+  docker exec "$container" php -r '
+    if (extension_loaded("apcu")) {
+      fwrite(STDERR, "[php-smoke] APCu is loaded in PHP CLI\n");
+      exit(1);
+    }
+  '
   if [[ "$VARIANT" == dev ]]; then
     required_extensions+=",xdebug"
     docker exec "$container" composer --version
