@@ -86,18 +86,14 @@ COPY --from=unison-builder /out/unison-fsmonitor /usr/local/bin/unison-fsmonitor
 ARG IMAGICK_PACKAGE
 RUN set -eux; \
 	# Use upstream source archives because PECL package downloads return HTTP 500.
-	apcu_package=krakjoe/apcu@819fce90c469a5666b1706036cd66120af419f1f; \
 	imagick_package=Imagick/imagick@555bf68b592a8d9d0a0a2f37d1256a8b6cf2d39e; \
 	case "$(php-config --version)" in \
 	  # Imagick 3.8.1 supports PHP 8.5's header changes.
 	  8.5.*) imagick_package=Imagick/imagick@70087bab33eab913e99ac77d64d04d1a2fd0b7b0 ;; \
-	  # PHP 8.6 needs unreleased APCu and Imagick fixes.
-	  8.6.*) \
-	    apcu_package=krakjoe/apcu@66300e28647c16fef7672a5add532f4262b23a75; \
-	    imagick_package=Imagick/imagick@b580a705e2c879924bfaee2e1ed3a93c9cb3fcfb ;; \
+	  # PHP 8.6 needs an unreleased Imagick fix.
+	  8.6.*) imagick_package=Imagick/imagick@b580a705e2c879924bfaee2e1ed3a93c9cb3fcfb ;; \
 	esac; \
 	install-php-extensions \
-		"$apcu_package" \
 		bcmath \
 		exif \
 		gd \

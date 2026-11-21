@@ -7,6 +7,7 @@ The format follows Keep a Changelog. Semantic Versioning is used where it fits t
 #### [Unreleased]
 
 - Added production and development images for PHP 8.5 and 8.6, with CI coverage for PHP 8.3 through 8.6.
+- Removed the APCu extension from production and development images.
 
 #### v2025.08.25
 

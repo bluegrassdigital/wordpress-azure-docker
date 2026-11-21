@@ -152,7 +152,7 @@ If you deploy files to `/home`, restart the app or slot. Do not run manual `rsyn
 ## Upgrades
 
 - To add a PHP branch, update `PHP_VERSIONS` in `docker-bake.hcl` and the matrix in `.github/workflows/ci.yml`. Docker publishing and release notes read the branches from Bake at the selected revision.
-- PHP 8.5 uses Imagick 3.8.1. PHP 8.6 uses pinned upstream APCu and Imagick fixes and Xdebug 3.6.0alpha1. The PHP 8.6 images skip the New Relic agent.
+- PHP 8.5 uses Imagick 3.8.1. PHP 8.6 uses a pinned Imagick fix and Xdebug 3.6.0alpha1. The PHP 8.6 images skip the New Relic agent.
 
 ## Release process
 
