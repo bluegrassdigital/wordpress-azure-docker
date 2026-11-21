@@ -8,8 +8,8 @@ This image keeps WordPress fast by serving from `/homelive` and syncing that liv
 
 ## Image variants
 
-- **Moving tags**: `:8.3-latest`, `:8.4-latest`, `:8.3-dev-latest`, `:8.4-dev-latest`, `:8.3-dev-stable`, `:8.4-dev-stable`, `:8.x-stable`, and sometimes `:<full-php-version>` when reused across releases.
-- **Immutable tags**: `:8.3-build-<git-sha>`.
+- Each PHP branch has moving tags `:8.x-latest`, `:8.x-stable`, `:8.x-dev-latest`, and `:8.x-dev-stable`.
+- Production builds receive a timestamped tag such as `:8.3-stable-<YYYYMMDDHHMMSS>`. Branch and release builds also publish `:8.x-build-<git-sha>`, which a rebuild of the same commit can update.
 - **Important note**: `:<full-php-version>` reflects the PHP engine version in the image, such as `8.3.11`, but it can still move if a later build keeps that same PHP version. Treat it as mutable unless you pin by digest.
 
 ## Key environment variables
@@ -131,7 +131,7 @@ For command details, see [docs/wp-azure-tools.md](docs/wp-azure-tools.md).
 
 ## Deployment guidance
 
-- Use immutable per-build tags in production, such as `bluegrassdigital/wordpress-azure-sync:8.3-build-<git-sha>`, or pin by digest.
+- Pin production to a digest or a timestamped build tag such as `bluegrassdigital/wordpress-azure-sync:8.3-stable-<YYYYMMDDHHMMSS>`.
 - Avoid `:latest`, `:stable`, and `:<full-php-version>` if you need strict immutability.
 - Deploy to a staging slot with Health Check enabled, then swap after the slot is healthy.
 - To roll out a new image, change the configured tag or restart the app so App Service pulls the image.
@@ -145,14 +145,14 @@ If you deploy files to `/home`, restart the app or slot. Do not run manual `rsyn
 
 ## Which tag to use
 
-- **Production**: `:8.3-build-<git-sha>` or a pinned digest
+- Pin production to a digest or a timestamped build tag.
 - **Non-production**: `:<full-php-version>` if a moving tag is acceptable
 - **Avoid in production**: `:8.3-latest`, `:8.4-latest`, `:8.x-stable`
 
 ## Upgrades
 
-- To add a PHP version, build with `--build-arg PHP_VERSION=...` and update `docker-bake.hcl` plus the CI matrix.
-- `imagick` is pinned to `3.8.0` for PHP 8.4+ compatibility.
+- To add a PHP branch, update `PHP_VERSIONS` in `docker-bake.hcl` and the matrix in `.github/workflows/ci.yml`. Docker publishing and release notes read the branches from Bake at the selected revision.
+- PHP 8.5 uses Imagick 3.8.1. PHP 8.6 uses pinned upstream APCu and Imagick fixes and Xdebug 3.6.0alpha1. The PHP 8.6 images skip the New Relic agent.
 
 ## Release process
 

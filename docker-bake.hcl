@@ -1,43 +1,45 @@
+variable "PHP_VERSIONS" {
+  default = "8.3,8.4,8.5,8.6"
+}
+
 group "default" {
-  targets = ["php83", "php84"]
+  targets = ["php"]
 }
 
 group "dev" {
-  targets = ["php83-dev", "php84-dev"]
+  targets = ["php-dev"]
 }
 
 group "all" {
-  targets = ["php83", "php84", "php83-dev", "php84-dev"]
+  targets = ["php", "php-dev"]
 }
 
 target "base" {
-  context   = "."
+  context    = "."
   dockerfile = "Dockerfile"
-  platforms = ["linux/amd64", "linux/arm64"]
+  platforms  = ["linux/amd64", "linux/arm64"]
 }
 
-target "php83" {
+target "php" {
   inherits = ["base"]
-  tags     = ["bluegrassdigital/wordpress-azure-sync:8.3-latest", "bluegrassdigital/wordpress-azure-sync:8.3-stable"]
-  args     = { PHP_VERSION = "8.3" }
+  matrix   = { version = split(",", PHP_VERSIONS) }
+  name     = "php${replace(version, ".", "")}"
+  target   = "runtime"
+  args     = { PHP_VERSION = version }
+  tags = [
+    "bluegrassdigital/wordpress-azure-sync:${version}-latest",
+    "bluegrassdigital/wordpress-azure-sync:${version}-stable"
+  ]
 }
 
-target "php84" {
+target "php-dev" {
   inherits = ["base"]
-  tags     = ["bluegrassdigital/wordpress-azure-sync:8.4-latest", "bluegrassdigital/wordpress-azure-sync:8.4-stable"]
-  args     = { PHP_VERSION = "8.4" }
-}
-
-target "php83-dev" {
-  inherits = ["base"]
+  matrix   = { version = split(",", PHP_VERSIONS) }
+  name     = "php${replace(version, ".", "")}-dev"
   target   = "dev"
-  tags     = ["bluegrassdigital/wordpress-azure-sync:8.3-dev-latest", "bluegrassdigital/wordpress-azure-sync:8.3-dev-stable"]
-  args     = { PHP_VERSION = "8.3" }
-}
-
-target "php84-dev" {
-  inherits = ["base"]
-  target   = "dev"
-  tags     = ["bluegrassdigital/wordpress-azure-sync:8.4-dev-latest", "bluegrassdigital/wordpress-azure-sync:8.4-dev-stable"]
-  args     = { PHP_VERSION = "8.4" }
+  args     = { PHP_VERSION = version }
+  tags = [
+    "bluegrassdigital/wordpress-azure-sync:${version}-dev-latest",
+    "bluegrassdigital/wordpress-azure-sync:${version}-dev-stable"
+  ]
 }

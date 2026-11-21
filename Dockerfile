@@ -1,4 +1,4 @@
-# This Dockerfile sets up a WordPress environment on top of the php:8.3-apache base image.
+# This Dockerfile sets up WordPress on the selected PHP Apache/Bookworm image.
 #
 # 1. Installs essential system packages including Ghostscript, SSH, cron, MariaDB client, rsync, inotify, and supervisord.
 # 2. Adds WordPress CLI (wp-cli), AzCopy for file handling, and Unison for file synchronization (multi-stage to keep final image lean).
@@ -58,7 +58,6 @@ RUN set -eux; \
 		inotify-tools \
 		rsync \
 		ca-certificates; \
-	apt-get -y purge linux-libc-dev || true; \
 	apt-get -y autoremove; \
 	rm -rf /var/lib/apt/lists/*
 
@@ -84,23 +83,35 @@ COPY --from=unison-builder /out/unison /usr/local/bin/unison
 COPY --from=unison-builder /out/unison-fsmonitor /usr/local/bin/unison-fsmonitor
 
 # PHP extensions
-ARG IMAGICK_PACKAGE=imagick-3.8.0
+ARG IMAGICK_PACKAGE
 RUN set -eux; \
+	# Use upstream source archives because PECL package downloads return HTTP 500.
+	apcu_package=krakjoe/apcu@819fce90c469a5666b1706036cd66120af419f1f; \
+	imagick_package=Imagick/imagick@555bf68b592a8d9d0a0a2f37d1256a8b6cf2d39e; \
+	case "$(php-config --version)" in \
+	  # Imagick 3.8.1 supports PHP 8.5's header changes.
+	  8.5.*) imagick_package=Imagick/imagick@70087bab33eab913e99ac77d64d04d1a2fd0b7b0 ;; \
+	  # PHP 8.6 needs unreleased APCu and Imagick fixes.
+	  8.6.*) \
+	    apcu_package=krakjoe/apcu@66300e28647c16fef7672a5add532f4262b23a75; \
+	    imagick_package=Imagick/imagick@b580a705e2c879924bfaee2e1ed3a93c9cb3fcfb ;; \
+	esac; \
 	install-php-extensions \
-		apcu \
-    bcmath \
+		"$apcu_package" \
+		bcmath \
 		exif \
 		gd \
 		mysqli \
 		zip \
 		opcache \
 		soap \
-    pdo \
-    pdo_mysql \
-    ${IMAGICK_PACKAGE} ;
+		pdo \
+		pdo_mysql \
+		"${IMAGICK_PACKAGE:-$imagick_package}"
 
 RUN set -eux; \
 	apt-get update; \
+	# Keep the compiler toolchain until GD and the other extensions are built.
 	apt-get -y purge linux-libc-dev || true; \
 	devpacks=$(dpkg -l | awk '/-dev[\t ]/ {print $2}'); \
 	if [ -n "${devpacks}" ]; then apt-get -y purge ${devpacks}; fi; \
@@ -137,6 +148,10 @@ RUN set -eux; \
 
 # New Relic setup (best-effort)
 RUN set -eux; \
+	# The current agent supports PHP through 8.5.
+	case "$(php-config --version)" in \
+	  8.6.*) echo 'New Relic agent install skipped on PHP 8.6'; exit 0 ;; \
+	esac; \
 	if command -v gpg >/dev/null 2>&1; then \
 	  install -d -m 0755 /etc/apt/keyrings; \
 	  (curl -fsSL https://download.newrelic.com/548C16BF.gpg | gpg --dearmor -o /etc/apt/keyrings/newrelic.gpg) || true; \
@@ -232,7 +247,12 @@ RUN set -eux; \
 	rm -rf /var/lib/apt/lists/*
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 RUN set -eux; \
-	install-php-extensions xdebug; \
+	xdebug_package=xdebug/xdebug@127bbcb980400752221cfaa54bdc1420e6ef3c12; \
+	# Xdebug added PHP 8.6 support in 3.6.0alpha1.
+	case "$(php-config --version)" in \
+	  8.6.*) xdebug_package=xdebug/xdebug@653e0443683790877b99e4e7a8adedf84b8e298b ;; \
+	esac; \
+	install-php-extensions "$xdebug_package"; \
 	# dev defaults: keep errors off by default; enable fast opcache reloads
 	printf "display_errors=Off\n" > /usr/local/etc/php/conf.d/zz-dev-overrides.ini; \
 	printf "display_startup_errors=Off\n" >> /usr/local/etc/php/conf.d/zz-dev-overrides.ini; \

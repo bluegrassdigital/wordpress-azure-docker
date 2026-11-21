@@ -6,15 +6,19 @@ The idea is straightforward. Serve WordPress from a fast local path, `/homelive`
 
 ## What the image includes
 
-- A production-ready WordPress image built on PHP 8.3 or 8.4 with Apache
+- Production and development WordPress images with Apache on PHP 8.3, 8.4, 8.5, or 8.6
 - Common PHP extensions, a health check, `supervisord`, and an optional Azure Monitor plugin
 - `rsync` and Unison support when `DOCKER_SYNC_ENABLED=1`
+
+PHP 8.3 receives security fixes only. [PHP support schedule](https://www.php.net/supported-versions.php/)
+
+WordPress core is targeting full PHP 8.6 compatibility in WordPress 7.2. The PHP 8.6 dev image uses Xdebug 3.6.0alpha1. The PHP 8.6 images skip the New Relic agent. [WordPress PHP 8.6 compatibility](https://wordpress.org/news/2026/11/wordpress-7-2-beta-5/)
 
 ## Quick start for Azure App Service
 
 ### 1. Use a stable image tag
 
-For production, use an immutable build tag such as `bluegrassdigital/wordpress-azure-sync:8.3-build-<git-sha>`. Avoid floating tags like `:latest` or `:stable`.
+Pin production to a digest or a timestamped build tag such as `bluegrassdigital/wordpress-azure-sync:8.3-stable-<YYYYMMDDHHMMSS>`.
 
 ### 2. Set the App Settings
 

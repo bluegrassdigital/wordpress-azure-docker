@@ -1,8 +1,7 @@
 name: Publish GitHub Release
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_call:
   workflow_dispatch:
     inputs:
       tag:
@@ -52,13 +51,20 @@ jobs:
           awk '$0 == "#### " ENVIRON["TAG"] {found=1; next} /^#### / {found=0} found' CHANGELOG.md > RELEASE_NOTES.md
           echo "Release notes generated for $TAG:" && cat RELEASE_NOTES.md
 
+      - name: Resolve release revision and PHP branches
+        run: |
+          set -euo pipefail
+          revision="$(git rev-parse HEAD)"
+          php_versions="$(docker buildx bake -f docker-bake.hcl --print default | jq -er '[.target[].args.PHP_VERSION] | sort | select(length > 0) | join(" ")')"
+          echo "RELEASE_REVISION=$revision" >> "$GITHUB_ENV"
+          echo "RELEASE_PHP_BRANCHES=$php_versions" >> "$GITHUB_ENV"
+
       - name: Append image tag references
         env:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           set -euo pipefail
-          COMMIT_SHA="${{ github.sha }}"
-          VERSIONS=(8.3 8.4)
+          read -r -a versions <<< "$RELEASE_PHP_BRANCHES"
           DOCKER_HUB_BASE="https://hub.docker.com/r/${IMAGE_NAME}/tags?name="
 
           # Find previous release tag for compare link
@@ -72,76 +78,58 @@ jobs:
             mv "$tmpfile" RELEASE_NOTES.md
           fi
 
+          image_link() {
+            local tag="$1"
+            printf '[`%s:%s`](%s%s)' "$IMAGE_NAME" "$tag" "$DOCKER_HUB_BASE" "$tag"
+          }
+
           {
             printf "\n### Images and tags\n\n"
-            for V in "${VERSIONS[@]}"; do
-              # Resolve full PHP version by querying the built image (best-effort)
-              FULL_PROD=$(docker run --rm "$IMAGE_NAME:$V-build-$COMMIT_SHA" php -r 'echo PHP_VERSION;' 2>/dev/null || echo "unknown")
-              FULL_DEV=$(docker run --rm "$IMAGE_NAME:$V-dev-stable" php -r 'echo PHP_VERSION;' 2>/dev/null || echo "unknown")
+            for version in "${versions[@]}"; do
+              prod_tag="$version-build-$RELEASE_REVISION"
+              prod_full=$(docker run --rm --entrypoint php "$IMAGE_NAME:$prod_tag" -r 'echo PHP_VERSION;' 2>/dev/null || true)
+              dev_full=$(docker run --rm --entrypoint php "$IMAGE_NAME:$version-dev-stable" -r 'echo PHP_VERSION;' 2>/dev/null || true)
 
-              printf -- "- PHP %s\n" "$V"
-              printf "  - Prod: [\`%s:%s-latest\`](%s%s-latest), [\`%s:%s-stable\`](%s%s-stable), [\`%s:%s-build-%s\`](%s%s-build-%s), [\`%s:%s\`](%s%s)\n" \
-                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
-                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
-                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
-                "$IMAGE_NAME" "$FULL_PROD" "$DOCKER_HUB_BASE" "$FULL_PROD"
-              printf "  - Dev:  [\`%s:%s-dev-latest\`](%s%s-dev-latest), [\`%s:%s-dev-stable\`](%s%s-dev-stable), [\`%s:%s-dev\`](%s%s-dev)\n" \
-                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
-                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
-                "$IMAGE_NAME" "$V" "$DOCKER_HUB_BASE" "$V" \
-                "$IMAGE_NAME" "$FULL_DEV" "$DOCKER_HUB_BASE" "$FULL_DEV"
-              printf "\n"
+              printf -- "- PHP %s\n" "$version"
+              printf "  - Prod: %s, %s" "$(image_link "$version-latest")" "$(image_link "$version-stable")"
+              if [[ "$prod_full" == "$version".* ]]; then
+                printf ", %s, %s" "$(image_link "$prod_tag")" "$(image_link "$prod_full")"
+              fi
+              printf "\n  - Dev: %s, %s" "$(image_link "$version-dev-latest")" "$(image_link "$version-dev-stable")"
+              if [[ "$dev_full" == "$version".* ]]; then
+                printf ", %s" "$(image_link "$dev_full-dev")"
+              fi
+              printf "\n\n"
             done
           } >> RELEASE_NOTES.md
           printf "Appended image tags and compare link (if available).\n"
 
-      - name: Trivy scan (prod 8.3)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
         continue-on-error: true
         with:
-          image-ref: ${{ env.IMAGE_NAME }}:8.3-build-${{ github.sha }}
-          vuln-type: 'os,library'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          format: 'table'
-          output: trivy-8.3-prod.txt
-          exit-code: '0'
+          version: v0.70.0
 
-      - name: Trivy scan (dev 8.3)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        continue-on-error: true
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}:8.3-dev-stable
-          vuln-type: 'os,library'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          format: 'table'
-          output: trivy-8.3-dev.txt
-          exit-code: '0'
+      - name: Scan release images
+        run: |
+          scan_image() {
+            local image="$1" report="$2"
+            if ! trivy image --scanners vuln --pkg-types os,library --ignore-unfixed \
+              --severity CRITICAL,HIGH --format table --output "$report" "$image"; then
+              rm -f "$report"
+              echo "::warning::Could not scan $image"
+            fi
+          }
 
-      - name: Trivy scan (prod 8.4)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        continue-on-error: true
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}:8.4-build-${{ github.sha }}
-          vuln-type: 'os,library'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          format: 'table'
-          output: trivy-8.4-prod.txt
-          exit-code: '0'
-
-      - name: Trivy scan (dev 8.4)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        continue-on-error: true
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}:8.4-dev-stable
-          vuln-type: 'os,library'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          format: 'table'
-          output: trivy-8.4-dev.txt
-          exit-code: '0'
+          if ! command -v trivy >/dev/null; then
+            echo "::warning::Trivy is unavailable"
+            exit 0
+          fi
+          read -r -a versions <<< "$RELEASE_PHP_BRANCHES"
+          for version in "${versions[@]}"; do
+            scan_image "$IMAGE_NAME:$version-build-$RELEASE_REVISION" "trivy-$version-prod.txt"
+            scan_image "$IMAGE_NAME:$version-dev-stable" "trivy-$version-dev.txt"
+          done
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
@@ -149,10 +137,5 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Release ${{ steps.tag.outputs.tag }}
           body_path: RELEASE_NOTES.md
-          files: |
-            trivy-8.3-prod.txt
-            trivy-8.3-dev.txt
-            trivy-8.4-prod.txt
-            trivy-8.4-dev.txt
+          files: trivy-*.txt
           make_latest: true
-

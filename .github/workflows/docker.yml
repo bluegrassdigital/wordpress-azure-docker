@@ -11,7 +11,35 @@ on:
 permissions: {}
 
 jobs:
+  plan-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      revision: ${{ steps.plan.outputs.revision }}
+      php_versions: ${{ steps.plan.outputs.php_versions }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Select source and supported PHP branches
+        id: plan
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+            tag="$(git describe --tags --abbrev=0)"
+            git checkout --detach "refs/tags/$tag"
+          fi
+          revision="$(git rev-parse HEAD)"
+          php_versions="$(docker buildx bake -f docker-bake.hcl --print default | jq -ec '[.target[].args.PHP_VERSION] | sort | select(length > 0)')"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "php_versions=$php_versions" >> "$GITHUB_OUTPUT"
+
   build-and-push:
+    needs: plan-build
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -19,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php_version: ["8.3", "8.4"]
+        php_version: ${{ fromJSON(needs.plan-build.outputs.php_versions) }}
     env:
       REGISTRY: docker.io
       IMAGE_NAME: bluegrassdigital/wordpress-azure-sync
@@ -28,13 +56,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-          fetch-depth: 0
-
-      - name: Checkout latest tag for scheduled build
-        if: ${{ github.event_name == 'schedule' }}
-        run: |
-          tag=$(git describe --tags --abbrev=0)
-          git checkout --detach "refs/tags/$tag"
+          ref: ${{ needs.plan-build.outputs.revision }}
 
       - name: Set build timestamp
         run: echo "BUILD_DATE=$(date +%Y%m%d%H%M%S)" >> $GITHUB_ENV
@@ -70,6 +92,7 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-latest
             ${{ (github.ref_type == 'tag' || github.event_name == 'schedule') && format('{0}:{1}-stable', env.IMAGE_NAME, matrix.php_version) || '' }}
             ${{ env.IMAGE_NAME }}:${{ matrix.php_version }}-stable-${{ env.BUILD_DATE }}
+            ${{ github.event_name != 'schedule' && format('{0}:{1}-build-{2}', env.IMAGE_NAME, matrix.php_version, needs.plan-build.outputs.revision) || '' }}
 
       - name: Build and push (dev, multi-arch)
         id: build_dev
@@ -241,3 +264,10 @@ jobs:
         with:
           sarif_file: trivy-dev.cleaned.sarif
           category: trivy-dev-${{ matrix.php_version }}
+
+  publish-release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build-and-push
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-release.yml

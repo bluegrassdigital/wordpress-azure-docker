@@ -42,7 +42,6 @@ This roadmap tracks the next practical steps for `bluegrassdigital/wordpress-azu
 
 ## Later
 
-- [ ] Add PHP 8.5 targets when it reaches GA
 - [ ] Consider dropping supervisor privileges per program where possible
 - [ ] Revisit Unison `repeat` versus `fsmonitor` once it is stable on target platforms
 - [ ] Add integration tests for the example stack with MySQL and a basic WordPress install
@@ -51,6 +50,6 @@ This roadmap tracks the next practical steps for `bluegrassdigital/wordpress-azu
 
 ## Operational notes
 
-- Image variants: `8.3`, `8.4`, and `-dev` variants for developer tooling such as Composer and Xdebug; multi-arch on `amd64` and `arm64`
+- Production and development images cover PHP 8.3 through 8.6 on amd64 and arm64.
 - Sync model: Azure `/home` ↔ `/homelive` via initial `rsync` plus Unison; logs in `/home/LogFiles/sync`
 - New Relic: best-effort install controlled through environment variables; document opt-out
